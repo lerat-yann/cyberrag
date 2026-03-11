@@ -8,6 +8,24 @@ const NGROK_HEADERS = {
   "ngrok-skip-browser-warning": "true",
 };
 
+const HIDDEN_DOCS_STORAGE_KEY = "cyberrag:hidden-documents";
+
+const readHiddenDocs = () => {
+  if (typeof window === "undefined") return [];
+  try {
+    const value = window.localStorage.getItem(HIDDEN_DOCS_STORAGE_KEY);
+    const parsed = value ? JSON.parse(value) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeHiddenDocs = (docs) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(HIDDEN_DOCS_STORAGE_KEY, JSON.stringify(docs));
+};
+
 const apiFetch = (url, options = {}) => {
   const isFormData = options.body instanceof FormData;
   return fetch(url, {
@@ -435,7 +453,8 @@ function UploadPanel({ onRefresh }) {
     try {
       const r = await apiFetch(`${API_URL}/documents`);
       const d = await r.json();
-      setDocs(d.documents || []);
+      const hiddenDocs = new Set(readHiddenDocs());
+      setDocs((d.documents || []).filter((doc) => !hiddenDocs.has(doc.name)));
     } catch {
       setDocs([]);
     }
@@ -459,6 +478,10 @@ function UploadPanel({ onRefresh }) {
     pdfs.forEach((f) => form.append("files", f));
     try {
       await apiFetch(`${API_URL}/upload`, { method: "POST", body: form });
+      const hiddenDocs = readHiddenDocs().filter(
+        (name) => !pdfs.some((file) => file.name === name),
+      );
+      writeHiddenDocs(hiddenDocs);
       setMsg(`✓ ${pdfs.length} fichier(s) uploadé(s) — réindexation en cours…`);
       setTimeout(() => {
         fetchDocs();
@@ -472,15 +495,11 @@ function UploadPanel({ onRefresh }) {
   };
 
   const handleDelete = async (name) => {
-    await apiFetch(`${API_URL}/documents/${encodeURIComponent(name)}`, {
-      method: "DELETE",
-    });
-    setMsg(`✓ ${name} supprimé — réindexation en cours…`);
-    setTimeout(() => {
-      fetchDocs();
-      onRefresh();
-      setMsg("");
-    }, 3000);
+    const hiddenDocs = Array.from(new Set([...readHiddenDocs(), name]));
+    writeHiddenDocs(hiddenDocs);
+    setDocs((currentDocs) => currentDocs.filter((doc) => doc.name !== name));
+    setMsg(`✓ ${name} masqué dans ce navigateur.`);
+    setTimeout(() => setMsg(""), 3000);
   };
 
   return (
@@ -585,6 +604,17 @@ function UploadPanel({ onRefresh }) {
         >
           CORPUS [{docs.length}]
         </p>
+        <p
+          style={{
+            fontSize: 9,
+            color: "rgba(0,255,65,0.22)",
+            marginBottom: 10,
+            lineHeight: 1.5,
+          }}
+        >
+          Masquer retire seulement le document de ce navigateur. Le serveur et
+          le corpus restent inchanges.
+        </p>
         {docs.length === 0 ? (
           <p
             style={{
@@ -645,6 +675,8 @@ function UploadPanel({ onRefresh }) {
               </div>
               <button
                 onClick={() => handleDelete(doc.name)}
+                title="Masquer dans ce navigateur"
+                aria-label={`Masquer ${doc.name} dans ce navigateur`}
                 style={{
                   background: "none",
                   border: "none",
