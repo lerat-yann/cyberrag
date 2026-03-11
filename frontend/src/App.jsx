@@ -8,24 +8,6 @@ const NGROK_HEADERS = {
   "ngrok-skip-browser-warning": "true",
 };
 
-const HIDDEN_DOCS_STORAGE_KEY = "cyberrag:hidden-documents";
-
-const readHiddenDocs = () => {
-  if (typeof window === "undefined") return [];
-  try {
-    const value = window.localStorage.getItem(HIDDEN_DOCS_STORAGE_KEY);
-    const parsed = value ? JSON.parse(value) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-};
-
-const writeHiddenDocs = (docs) => {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(HIDDEN_DOCS_STORAGE_KEY, JSON.stringify(docs));
-};
-
 const apiFetch = (url, options = {}) => {
   const isFormData = options.body instanceof FormData;
   return fetch(url, {
@@ -446,6 +428,7 @@ function UploadPanel({ onRefresh }) {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [docs, setDocs] = useState([]);
+  const [hiddenDocs, setHiddenDocs] = useState([]);
   const [msg, setMsg] = useState("");
   const inputRef = useRef();
 
@@ -453,12 +436,12 @@ function UploadPanel({ onRefresh }) {
     try {
       const r = await apiFetch(`${API_URL}/documents`);
       const d = await r.json();
-      const hiddenDocs = new Set(readHiddenDocs());
-      setDocs((d.documents || []).filter((doc) => !hiddenDocs.has(doc.name)));
+      const hiddenDocNames = new Set(hiddenDocs);
+      setDocs((d.documents || []).filter((doc) => !hiddenDocNames.has(doc.name)));
     } catch {
       setDocs([]);
     }
-  }, []);
+  }, [hiddenDocs]);
 
   useEffect(() => {
     fetchDocs();
@@ -478,10 +461,11 @@ function UploadPanel({ onRefresh }) {
     pdfs.forEach((f) => form.append("files", f));
     try {
       await apiFetch(`${API_URL}/upload`, { method: "POST", body: form });
-      const hiddenDocs = readHiddenDocs().filter(
-        (name) => !pdfs.some((file) => file.name === name),
+      setHiddenDocs((currentHiddenDocs) =>
+        currentHiddenDocs.filter(
+          (name) => !pdfs.some((file) => file.name === name),
+        ),
       );
-      writeHiddenDocs(hiddenDocs);
       setMsg(`✓ ${pdfs.length} fichier(s) uploadé(s) — réindexation en cours…`);
       setTimeout(() => {
         fetchDocs();
@@ -495,10 +479,13 @@ function UploadPanel({ onRefresh }) {
   };
 
   const handleDelete = async (name) => {
-    const hiddenDocs = Array.from(new Set([...readHiddenDocs(), name]));
-    writeHiddenDocs(hiddenDocs);
+    setHiddenDocs((currentHiddenDocs) =>
+      currentHiddenDocs.includes(name)
+        ? currentHiddenDocs
+        : [...currentHiddenDocs, name],
+    );
     setDocs((currentDocs) => currentDocs.filter((doc) => doc.name !== name));
-    setMsg(`✓ ${name} masqué dans ce navigateur.`);
+    setMsg(`✓ ${name} masqué jusqu'au prochain rafraîchissement.`);
     setTimeout(() => setMsg(""), 3000);
   };
 
