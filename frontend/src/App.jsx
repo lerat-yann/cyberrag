@@ -1,19 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 const API_URL =
-  import.meta.env.VITE_API_URL ||
-  "https://marylynn-hyperpyretic-peg.ngrok-free.dev";
+  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
-const NGROK_HEADERS = {
-  "ngrok-skip-browser-warning": "true",
-};
 
 const apiFetch = (url, options = {}) => {
   const isFormData = options.body instanceof FormData;
   return fetch(url, {
     ...options,
     headers: {
-      ...NGROK_HEADERS,
       ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(options.headers || {}),
     },
