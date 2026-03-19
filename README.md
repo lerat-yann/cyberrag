@@ -1,182 +1,165 @@
-# CyberRAG — Guide de déploiement production
+# CyberRAG
 
-**Frontend** → Vercel ou Netlify  
-**Backend** → Railway  
+Assistant RAG orienté cybersécurité permettant de poser des questions sur un corpus de PDF, d’indexer des documents et d’exposer le tout via une API FastAPI et une interface React/Vite. Les routes backend incluent notamment `/health`, `/status`, `/query`, `/upload` et `/documents`. fileciteturn3file3turn3file10
 
----
+🚀 **Démo live** : [Voir le site](https://cyberrag.vercel.app/)
 
-## Structure du repo
+## Le problème
 
-```
+La documentation cybersécurité est souvent dispersée dans plusieurs PDF et difficile à interroger rapidement. Retrouver une procédure, un extrait ou une information précise prend du temps.
+
+## La solution
+
+CyberRAG centralise un corpus documentaire PDF, l’indexe avec une approche hybride et permet ensuite de poser des questions à une interface web reliée à une API FastAPI. Le backend combine ChromaDB, BM25, LangChain et Gemini pour restituer une réponse courte accompagnée de sources documentaires. fileciteturn3file10turn3file12
+
+## Déploiement
+
+- **Frontend** : déployé sur Vercel via une application React + Vite. `package.json` expose les scripts `dev`, `build` et `preview`, et `vercel.json` configure le build Vite et la réécriture SPA. fileciteturn3file6turn3file15
+- **Backend** : déployé sur un VPS Debian avec FastAPI derrière Nginx et HTTPS.
+
+## Stack technique
+
+### Backend
+
+- FastAPI
+- Uvicorn
+- LangChain
+- ChromaDB
+- sentence-transformers
+- Gemini via `langchain-google-genai`
+- PyPDF
+
+### Frontend
+
+- React
+- Vite
+- Tailwind CSS
+
+Les dépendances backend et frontend sont définies dans `backend/requirements.txt` et `frontend/package.json`. fileciteturn3file6turn3file2
+
+## Structure du dépôt
+
+```text
 cyberrag/
-├── backend/          ← FastAPI — déployé sur Railway
+├── backend/
+│   ├── docs_cybersec/
+│   ├── .env.example
+│   ├── .gitignore
 │   ├── main.py
-│   ├── requirements.txt
-│   ├── Procfile
-│   ├── railway.json
-│   └── .env.example
+│   └── requirements.txt
 │
-└── frontend/         ← React/Vite — déployé sur Vercel ou Netlify
-    ├── src/
-    │   ├── App.jsx
-    │   ├── main.jsx
-    │   └── index.css
-    ├── index.html
-    ├── vite.config.js
-    ├── vercel.json
-    ├── netlify.toml
-    └── .env.local.example
+├── frontend/
+│   ├── src/
+│   ├── index.html
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── postcss.config.js
+│   ├── tailwind.config.js
+│   ├── vercel.json
+│   └── vite.config.js
+│
+├── .gitignore
+└── README.md
 ```
 
----
+Cette structure reprend les éléments réellement suivis dans le dépôt, sans `assets/`, et sans les fichiers de déploiement devenus inutiles (`backend/Procfile`, `backend/railway.json`, `frontend/netlify.toml`). Le README précédent mentionnait encore Railway et Netlify. fileciteturn3file0turn3file1turn3file11turn3file9
 
-## 1. Préparer le repo Git
+## Fonctionnalités principales
+
+- Health check de l’API
+- Statut du pipeline RAG
+- Upload de PDF
+- Liste des documents indexés
+- Suppression d’un document
+- Question/réponse sur le corpus avec sources
+
+Ces fonctionnalités sont exposées dans `main.py`. fileciteturn3file3
+
+## API
+
+| Méthode | Route                   | Description                     |
+| ------- | ----------------------- | ------------------------------- |
+| GET     | `/health`               | Vérifie que l’API répond        |
+| GET     | `/status`               | Retourne l’état du pipeline     |
+| POST    | `/query`                | Pose une question au moteur RAG |
+| POST    | `/upload`               | Upload de PDF                   |
+| GET     | `/documents`            | Liste les documents indexés     |
+| DELETE  | `/documents/{filename}` | Supprime un document            |
+| GET     | `/docs`                 | Documentation Swagger           |
+
+Routes extraites du backend FastAPI. fileciteturn3file3
+
+## Lancer le projet en local
+
+### 1) Backend
 
 ```bash
-git init
-git add .
-git commit -m "feat: cyberrag initial"
-
-# Créer un repo sur GitHub puis :
-git remote add origin https://github.com/TON_USER/cyberrag.git
-git push -u origin main
-```
-
-> ⚠️ Ne jamais committer `.env` ou `.env.local`. Les `.gitignore` sont déjà configurés.
-
----
-
-## 2. Déployer le backend sur Railway
-
-### 2.1 Créer le projet Railway
-
-1. Aller sur [railway.app](https://railway.app) → **New Project**
-2. **Deploy from GitHub repo** → sélectionner votre repo
-3. Railway détecte automatiquement le `Procfile` et `requirements.txt`
-4. Dans **Settings → Root Directory** : mettre `backend`
-
-### 2.2 Configurer les variables d'environnement
-
-Dans Railway → votre service → **Variables** → ajouter :
-
-| Clé | Valeur |
-|-----|--------|
-| `GOOGLE_API_KEY` | `votre_clé_google_gemini` |
-
-Railway injecte automatiquement `$PORT` — le `Procfile` l'utilise déjà.
-
-### 2.3 Récupérer l'URL du backend
-
-Dans Railway → **Settings → Networking → Generate Domain**  
-Vous obtenez une URL de la forme :  
-```
-https://cyberrag-backend-production.up.railway.app
-```
-**Copiez cette URL** — vous en aurez besoin pour le frontend.
-
-### 2.4 Vérifier le déploiement
-
-```bash
-curl https://votre-url.railway.app/health
-# → {"status":"ok"}
-
-curl https://votre-url.railway.app/status
-# → {"ready":false,"indexing":false,"pdf_count":0,...}
-```
-
----
-
-## 3. Déployer le frontend
-
-### Option A — Vercel (recommandé)
-
-1. Aller sur [vercel.com](https://vercel.com) → **Add New Project**
-2. Importer le repo GitHub
-3. Dans **Root Directory** : mettre `frontend`
-4. Framework Preset : **Vite** (détecté automatiquement)
-5. Dans **Environment Variables** → ajouter :
-
-| Clé | Valeur |
-|-----|--------|
-| `VITE_API_URL` | `https://votre-url.railway.app` |
-
-6. **Deploy** → Vercel build et déploie automatiquement
-
----
-
-### Option B — Netlify
-
-1. Aller sur [netlify.com](https://netlify.com) → **Add new site → Import from Git**
-2. Sélectionner le repo GitHub
-3. **Base directory** : `frontend`
-4. **Build command** : `npm run build`  
-5. **Publish directory** : `dist`
-6. Dans **Site configuration → Environment variables** → ajouter :
-
-| Clé | Valeur |
-|-----|--------|
-| `VITE_API_URL` | `https://votre-url.railway.app` |
-
-7. **Deploy site**
-
----
-
-## 4. Développement local
-
-```bash
-# Backend
 cd backend
-python -m venv venv && source venv/bin/activate
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env          # remplir GOOGLE_API_KEY
-mkdir -p docs_cybersec        # mettre vos PDFs ici
-uvicorn main:app --reload --port 8000
+cp .env.example .env
+```
 
-# Frontend (autre terminal)
+Ajouter ensuite dans `.env` :
+
+```env
+GOOGLE_API_KEY=your_api_key
+```
+
+Puis lancer l’API :
+
+```bash
+uvicorn main:app --reload --port 8000
+```
+
+Le backend lit les PDF depuis `backend/docs_cybersec/`. fileciteturn3file10
+
+### 2) Frontend
+
+```bash
 cd frontend
 npm install
-cp .env.local.example .env.local   # VITE_API_URL=http://localhost:8000
-npm run dev                         # → http://localhost:3000
 ```
 
----
+Créer un fichier `.env.local` avec :
 
-## 5. Déploiements continus (CI/CD)
+```env
+VITE_API_URL=http://127.0.0.1:8000
+```
 
-Une fois le repo connecté, chaque `git push origin main` déclenche automatiquement :
-- Railway : re-build et re-déploiement du backend
-- Vercel/Netlify : re-build et re-déploiement du frontend
+Puis lancer le frontend :
 
----
+```bash
+npm run dev
+```
 
-## 6. Notes importantes pour la démo
+Scripts frontend confirmés par `package.json`. fileciteturn3file6
 
-### CORS
-Le backend est configuré avec `allow_origins=["*"]` — suffisant pour un portfolio.  
-En production réelle, remplacer par l'URL Vercel/Netlify exacte.
+## Tests rapides en local
 
-### Stockage PDFs sur Railway
-Railway utilise un **filesystem éphémère** : les PDFs uploadés depuis l'UI sont perdus au redémarrage.  
-Pour un portfolio démo c'est acceptable. Pour persister les données → ajouter un volume Railway ou un bucket S3.
+- Frontend : `http://localhost:5173`
+- Backend : `http://127.0.0.1:8000`
+- Health check : `http://127.0.0.1:8000/health`
+- Documentation API : `http://127.0.0.1:8000/docs`
 
-### Cold start
-- Railway tier gratuit : le service peut dormir après inactivité → premier appel ~30s
-- Netlify/Vercel : pas de cold start (statique)
+## Variables d’environnement
 
-### Variables d'env côté frontend
-`VITE_API_URL` est injectée **au moment du build**, pas au runtime.  
-Si vous changez l'URL Railway, il faut rebuild le frontend.
+### Backend
 
----
+- `GOOGLE_API_KEY`
 
-## API Reference
+### Frontend
 
-| Méthode | Route | Description |
-|---------|-------|-------------|
-| `GET` | `/health` | Health check |
-| `GET` | `/status` | État pipeline (ready, chunks, model…) |
-| `POST` | `/query` | `{question, top_k}` → réponse + sources |
-| `POST` | `/upload` | Upload PDFs (multipart/form-data) |
-| `GET` | `/documents` | Liste des PDFs indexés |
-| `DELETE` | `/documents/{name}` | Supprime + réindexe |
-| `GET` | `/docs` | Swagger UI interactif |
+- `VITE_API_URL`
+
+Ne jamais versionner les vrais secrets. Le backend charge la variable `GOOGLE_API_KEY` via `.env` et s’arrête si elle est absente. fileciteturn3file10
+
+## Notes
+
+- Le backend accepte actuellement `allow_origins=["*"]`, ce qui est pratique pour une démo portfolio mais devrait être restreint en production plus stricte. fileciteturn3file8
+- Le projet a été simplifié pour refléter le déploiement réellement utilisé : Vercel pour le frontend, VPS pour le backend.
+
+## Auteur
+
+Projet réalisé par Yann comme démonstration technique d’un système RAG orienté cybersécurité, utilisable localement et déployé en ligne.
