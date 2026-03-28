@@ -25,12 +25,12 @@ const apiFetch = (url, options = {}) =>
   });
 
 function StatusBadge({ status }) {
-  const color = status.indexing ? "#f59e0b" : status.ready ? "#00ff41" : "#ef4444";
+  const color = status.indexing ? "#f59e0b" : status.ready ? "#00ff8c" : "#ef4444";
   const label = status.indexing ? "INDEXING" : status.ready ? "ONLINE" : "OFFLINE";
 
   return (
     <div className="status-badge">
-      <span className="status-dot" style={{ background: color, boxShadow: `0 0 16px ${color}` }} />
+      <span className="status-dot" style={{ background: color, boxShadow: `0 0 18px ${color}` }} />
       <span className="status-label" style={{ color }}>{label}</span>
       <span className="status-meta">{status.pdf_count} docs / {status.chunk_count} chunks</span>
     </div>
@@ -64,8 +64,8 @@ function Message({ message }) {
 function EmptyState({ status }) {
   return (
     <div className="empty-state">
-      <div className="empty-chip">CYBERSECURITY RAG DEMO</div>
-      <h2 className="empty-title">Assistant documentaire orienté SOC / cybersécurité</h2>
+      <div className="empty-chip">OFFICIAL CORPUS · CYBER RAG</div>
+      <h2 className="empty-title">Assistant documentaire cybersécurité orienté SOC</h2>
       <p className="empty-copy">
         {status.ready
           ? `Le corpus officiel est prêt avec ${status.pdf_count} document(s) et ${status.chunk_count} chunks indexés.`
@@ -74,15 +74,15 @@ function EmptyState({ status }) {
       <div className="empty-grid">
         <div className="empty-card">
           <div className="empty-card-title">Capacités</div>
-          <p>Réponses factuelles à partir du corpus officiel, avec extraits de sources visibles.</p>
+          <p>Réponses factuelles à partir du corpus officiel, avec extraits de sources et citations visibles.</p>
         </div>
         <div className="empty-card">
           <div className="empty-card-title">Limites</div>
           <p>Pas de connaissances ajoutées hors corpus, pas de réponse hors sujet, pas d'aide offensive.</p>
         </div>
         <div className="empty-card">
-          <div className="empty-card-title">Style conseillé</div>
-          <p>Questions courtes, ciblées, centrées sur les politiques, procédures et mesures défensives.</p>
+          <div className="empty-card-title">Conseil</div>
+          <p>Privilégie des questions ciblées sur des politiques, mesures défensives, incidents ou procédures.</p>
         </div>
       </div>
     </div>
@@ -171,8 +171,8 @@ export default function App() {
 
       <div className="app-grid">
         <main className="chat-panel">
-          <header className="hero-panel">
-            <div>
+          <header className="topbar-card">
+            <div className="brand-block">
               <div className="hero-kicker">OFFICIAL CORPUS MODE</div>
               <h1 className="hero-title">CYBERRAG</h1>
               <p className="hero-subtitle">
@@ -223,7 +223,7 @@ export default function App() {
                 }}
                 placeholder={status.ready ? "Posez une question sur le corpus officiel..." : "Corpus officiel indisponible..."}
                 disabled={!status.ready || loading}
-                rows={3}
+                rows={2}
                 className="composer-input"
               />
               <button
@@ -238,7 +238,7 @@ export default function App() {
         </main>
 
         <aside className="info-panel">
-          <section className="info-card">
+          <section className="info-card info-card-compact">
             <div className="info-title">PÉRIMÈTRE</div>
             <p>Corpus officiel uniquement : <strong>backend/docs_cybersec</strong>.</p>
           </section>
@@ -262,7 +262,7 @@ export default function App() {
             </div>
           </section>
 
-          <section className="info-card">
+          <section className="info-card info-card-compact">
             <div className="info-title">RÈGLES ASSISTANT</div>
             <ul className="info-list">
               <li>Réponses uniquement depuis le corpus officiel.</li>
@@ -272,7 +272,7 @@ export default function App() {
             </ul>
           </section>
 
-          <section className="info-card">
+          <section className="info-card info-card-compact">
             <div className="info-title">CONSEILS</div>
             <ul className="info-list">
               {DEMO_TIPS.map((tip) => (
