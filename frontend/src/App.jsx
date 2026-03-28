@@ -182,19 +182,6 @@ export default function App() {
             <StatusBadge status={status} />
           </header>
 
-          <section className="suggestions-row">
-            {SUGGESTIONS.map((suggestion) => (
-              <button
-                key={suggestion}
-                onClick={() => sendMessage(suggestion)}
-                disabled={!status.ready || loading}
-                className="suggestion-pill"
-              >
-                {suggestion}
-              </button>
-            ))}
-          </section>
-
           <section className="conversation-card">
             <div className="conversation-scroll">
               {messages.length === 0 ? (
@@ -207,6 +194,19 @@ export default function App() {
               {loading && <div className="loading-line">Analyse du corpus officiel...</div>}
               <div ref={bottomRef} />
             </div>
+          </section>
+
+          <section className="suggestions-row">
+            {SUGGESTIONS.map((suggestion) => (
+              <button
+                key={suggestion}
+                onClick={() => sendMessage(suggestion)}
+                disabled={!status.ready || loading}
+                className="suggestion-pill"
+              >
+                {suggestion}
+              </button>
+            ))}
           </section>
 
           <section className="composer-card">
