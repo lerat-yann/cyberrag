@@ -24,6 +24,29 @@ const apiFetch = (url, options = {}) =>
     },
   });
 
+const getErrorMessage = async (response) => {
+  try {
+    const data = await response.json();
+    if (typeof data?.detail === "string" && data.detail.trim()) {
+      return data.detail;
+    }
+    if (typeof data?.message === "string" && data.message.trim()) {
+      return data.message;
+    }
+  } catch {
+    try {
+      const text = await response.text();
+      if (text.trim()) {
+        return text;
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+};
+
 function StatusBadge({ status }) {
   const color = status.indexing ? "#f59e0b" : status.ready ? "#00ff41" : "#ef4444";
   const label = status.indexing ? "INDEXING" : status.ready ? "ONLINE" : "OFFLINE";
@@ -135,14 +158,15 @@ export default function App() {
         method: "POST",
         body: JSON.stringify({ question: value, top_k: 3 }),
       });
-      const data = await response.json();
 
       if (!response.ok) {
+        const errorMessage = await getErrorMessage(response);
         setMessages((current) => [
           ...current,
-          { role: "assistant", content: data.detail || "Erreur backend.", error: true },
+          { role: "assistant", content: errorMessage || "Erreur backend.", error: true },
         ]);
       } else {
+        const data = await response.json();
         setMessages((current) => [
           ...current,
           {

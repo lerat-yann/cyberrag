@@ -97,6 +97,24 @@ def get_rag_prompt():
     return rag_prompt
 
 
+def classify_llm_error(exc: Exception) -> tuple[int, str]:
+    message = str(exc)
+    message_lower = message.lower()
+    status_code = getattr(exc, "status_code", None)
+
+    if (
+        status_code == 429
+        or "429" in message_lower
+        or "resource_exhausted" in message_lower
+        or "quota" in message_lower
+        or "rate limit" in message_lower
+        or "rate_limit" in message_lower
+    ):
+        return 429, "Quota Gemini atteinte pour le moment. Réessaie plus tard."
+
+    return 502, "Erreur temporaire côté modèle. Réessaie plus tard."
+
+
 def reset_pipeline():
     if state.vectorstore is not None:
         try:
@@ -241,7 +259,12 @@ def query(req: QueryRequest):
 
     context = "\n\n".join(f"[{i+1}] {doc.page_content}" for i, doc in enumerate(retrieved_docs))
     prompt_value = get_rag_prompt().invoke({"context": context, "question": req.question})
-    response_text = get_llm().invoke(prompt_value).content
+    try:
+        response_text = get_llm().invoke(prompt_value).content
+    except Exception as exc:
+        status_code, detail = classify_llm_error(exc)
+        logger.exception("Erreur lors de l'appel Gemini.")
+        raise HTTPException(status_code=status_code, detail=detail) from exc
     duration_ms = int((time.time() - start) * 1000)
 
     sources = [
