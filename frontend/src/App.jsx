@@ -1,9 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  deleteLocalDocument,
-  listLocalDocuments,
-  saveLocalDocuments,
-} from "./localDocuments";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
@@ -22,17 +17,6 @@ const apiFetch = (url, options = {}) =>
       ...(options.headers || {}),
     },
   });
-
-function formatFileSize(size) {
-  return `${(size / 1024).toFixed(1)} Ko`;
-}
-
-function formatDate(value) {
-  return new Intl.DateTimeFormat("fr-FR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
 
 function StatusBadge({ status }) {
   const color = status.indexing ? "#f59e0b" : status.ready ? "#00ff41" : "#ef4444";
@@ -112,148 +96,6 @@ function Message({ message }) {
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function LocalDocumentsPanel() {
-  const [documents, setDocuments] = useState([]);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-  const [saving, setSaving] = useState(false);
-  const inputRef = useRef(null);
-
-  const refreshDocuments = useCallback(async () => {
-    try {
-      const docs = await listLocalDocuments();
-      setDocuments(docs);
-      setError("");
-    } catch {
-      setDocuments([]);
-      setError("IndexedDB indisponible dans ce navigateur.");
-    }
-  }, []);
-
-  useEffect(() => {
-    refreshDocuments();
-  }, [refreshDocuments]);
-
-  const handleFiles = async (fileList) => {
-    const files = Array.from(fileList || []);
-    if (!files.length) return;
-
-    setSaving(true);
-    setMessage("");
-    setError("");
-
-    try {
-      const count = await saveLocalDocuments(files);
-      if (!count) {
-        setError("Seuls les fichiers PDF sont acceptés.");
-      } else {
-        setMessage(`${count} document(s) personnel(s) stocké(s) localement.`);
-      }
-      await refreshDocuments();
-    } catch {
-      setError("Impossible d'enregistrer les documents dans IndexedDB.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = async (id) => {
-    try {
-      await deleteLocalDocument(id);
-      setMessage("Document personnel local supprimé.");
-      await refreshDocuments();
-    } catch {
-      setError("Suppression locale impossible.");
-    }
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "100%" }}>
-      <div style={{ fontSize: 11, color: "rgba(0,255,65,0.55)", lineHeight: 1.6 }}>
-        Documents personnels locaux.
-        <br />
-        Ils restent dans ce navigateur via IndexedDB et ne sont jamais envoyés au backend.
-      </div>
-
-      <button
-        onClick={() => inputRef.current?.click()}
-        style={{
-          background: "rgba(0,255,65,0.05)",
-          border: "1px dashed rgba(0,255,65,0.25)",
-          color: "rgba(0,255,65,0.75)",
-          borderRadius: 10,
-          padding: 18,
-          cursor: "pointer",
-          textAlign: "center",
-          fontFamily: "inherit",
-        }}
-      >
-        {saving ? "ENREGISTREMENT LOCAL..." : "AJOUTER DES PDF LOCAUX"}
-      </button>
-      <input
-        ref={inputRef}
-        type="file"
-        multiple
-        accept=".pdf,application/pdf"
-        style={{ display: "none" }}
-        onChange={(event) => handleFiles(event.target.files)}
-      />
-
-      {message && <div style={{ fontSize: 10, color: "#00ff41" }}>{message}</div>}
-      {error && <div style={{ fontSize: 10, color: "#ef4444" }}>{error}</div>}
-
-      <div style={{ fontSize: 10, color: "rgba(0,255,65,0.35)", letterSpacing: "0.12em" }}>
-        DOCUMENTS PERSONNELS [{documents.length}]
-      </div>
-
-      <div style={{ display: "grid", gap: 8, overflowY: "auto" }}>
-        {documents.length === 0 && (
-          <div style={{ fontSize: 11, color: "rgba(0,255,65,0.25)" }}>
-            Aucun document local enregistré.
-          </div>
-        )}
-        {documents.map((doc) => (
-          <div
-            key={doc.id}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 12,
-              background: "rgba(0,255,65,0.03)",
-              border: "1px solid rgba(0,255,65,0.08)",
-              borderRadius: 8,
-              padding: 10,
-            }}
-          >
-            <div style={{ minWidth: 0 }}>
-              <div style={{ color: "rgba(0,255,65,0.82)", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis" }}>
-                {doc.name}
-              </div>
-              <div style={{ color: "rgba(0,255,65,0.35)", fontSize: 10, marginTop: 4 }}>
-                {formatFileSize(doc.size)} · {formatDate(doc.savedAt)}
-              </div>
-            </div>
-            <button
-              onClick={() => handleDelete(doc.id)}
-              style={{
-                background: "transparent",
-                border: "1px solid rgba(239,68,68,0.25)",
-                color: "#ef4444",
-                borderRadius: 6,
-                cursor: "pointer",
-                padding: "6px 10px",
-                fontFamily: "inherit",
-              }}
-            >
-              Supprimer
-            </button>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
@@ -338,20 +180,18 @@ export default function App() {
         background: "#08110a",
         color: "#00ff41",
         fontFamily: "'Share Tech Mono', 'Courier New', monospace",
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) 320px",
       }}
     >
       <link
         href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap"
         rel="stylesheet"
       />
-      <main style={{ padding: 24, display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <main style={{ maxWidth: 1080, margin: "0 auto", padding: 24, display: "flex", flexDirection: "column" }}>
         <header style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 20 }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 28, letterSpacing: "0.18em" }}>CYBERRAG</h1>
             <div style={{ marginTop: 6, fontSize: 11, color: "rgba(0,255,65,0.4)" }}>
-              Backend RAG sur corpus officiel serveur uniquement
+              Démo RAG centrée sur le corpus officiel backend
             </div>
           </div>
           <StatusBadge status={status} />
@@ -368,9 +208,8 @@ export default function App() {
             color: "rgba(0,255,65,0.62)",
           }}
         >
-          Le backend lit uniquement le corpus officiel versionné dans <strong>backend/docs_cybersec</strong>.
-          Les documents personnels ajoutés dans le panneau de droite restent strictement dans le navigateur via IndexedDB.
-          Aucun document local utilisateur n'est envoyé, stocké ou indexé côté serveur.
+          Le backend répond uniquement à partir du corpus officiel versionné dans <strong>backend/docs_cybersec</strong>.
+          Cette démo ne permet aucun ajout de document utilisateur.
         </section>
 
         <section style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
@@ -392,6 +231,21 @@ export default function App() {
               {suggestion}
             </button>
           ))}
+        </section>
+
+        <section
+          style={{
+            marginBottom: 16,
+            background: "rgba(0,255,65,0.04)",
+            border: "1px solid rgba(0,255,65,0.1)",
+            borderRadius: 12,
+            padding: 14,
+            color: "rgba(0,255,65,0.65)",
+            fontSize: 12,
+            lineHeight: 1.7,
+          }}
+        >
+          Corpus officiel : {status.pdf_count} document(s) indexé(s) côté serveur.
         </section>
 
         <section
@@ -423,7 +277,7 @@ export default function App() {
 
         <section style={{ marginTop: 16 }}>
           <div style={{ fontSize: 11, color: "rgba(0,255,65,0.4)", marginBottom: 8 }}>
-            Cette zone envoie uniquement la question au backend. Aucun document personnel local n'est transmis au serveur.
+            Pose une question sur le corpus officiel cybersécurité.
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <textarea
@@ -468,52 +322,6 @@ export default function App() {
           </div>
         </section>
       </main>
-
-      <aside
-        style={{
-          borderLeft: "1px solid rgba(0,255,65,0.08)",
-          background: "rgba(0,0,0,0.18)",
-          padding: 20,
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-          minHeight: "100vh",
-        }}
-      >
-        <section
-          style={{
-            background: "rgba(0,255,65,0.04)",
-            border: "1px solid rgba(0,255,65,0.1)",
-            borderRadius: 10,
-            padding: 14,
-          }}
-        >
-          <div style={{ fontSize: 10, letterSpacing: "0.14em", color: "rgba(0,255,65,0.42)" }}>
-            CORPUS OFFICIEL SERVEUR
-          </div>
-          <div style={{ marginTop: 8, color: "rgba(0,255,65,0.72)", lineHeight: 1.7, fontSize: 12 }}>
-            Source: backend/docs_cybersec
-            <br />
-            {status.pdf_count} document(s) indexé(s) côté serveur.
-          </div>
-        </section>
-
-        <section
-          style={{
-            flex: 1,
-            background: "rgba(0,255,65,0.04)",
-            border: "1px solid rgba(0,255,65,0.1)",
-            borderRadius: 10,
-            padding: 14,
-            minHeight: 0,
-          }}
-        >
-          <div style={{ fontSize: 10, letterSpacing: "0.14em", color: "rgba(0,255,65,0.42)", marginBottom: 12 }}>
-            DOCUMENTS PERSONNELS LOCAUX
-          </div>
-          <LocalDocumentsPanel />
-        </section>
-      </aside>
     </div>
   );
 }

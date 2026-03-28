@@ -1,26 +1,24 @@
 # CyberRAG
 
-Assistant RAG orienté cybersécurité avec une séparation stricte entre :
+CyberRAG est une démo RAG orientée cybersécurité basée uniquement sur le corpus officiel backend stocké dans `backend/docs_cybersec`.
 
-- le corpus officiel serveur versionné dans `backend/docs_cybersec`
-- les documents personnels utilisateur stockés uniquement dans le navigateur via IndexedDB
+## Principe
 
-## Règles d'architecture
+- le backend FastAPI lit et indexe exclusivement le corpus officiel versionné dans le projet
+- aucun document utilisateur ne peut être ajouté depuis l'interface
+- aucun upload utilisateur n'existe côté serveur
+- aucune persistance locale de documents utilisateur n'est conservée dans le frontend
+- le modèle répond uniquement à partir du corpus officiel
 
-### Corpus officiel serveur
+## Comportement du modèle
 
-- alimenté uniquement par le développeur dans le dépôt local
-- versionné via Git puis déployé
-- lu et indexé uniquement par le backend FastAPI
-- aucune route backend ne permet à un utilisateur navigateur d'ajouter, modifier ou supprimer des documents
+Le système distingue explicitement trois cas :
 
-### Documents personnels locaux
+- information cybersécurité absente des documents : l'assistant indique qu'elle n'est pas trouvée dans la documentation disponible
+- question hors sujet : l'assistant indique qu'il est limité au périmètre cybersécurité et au corpus officiel
+- demande offensive ou dangereuse : l'assistant refuse l'aide opérationnelle offensive et ne propose qu'une aide défensive, de prévention, de détection ou de protection
 
-- ajoutés par l'utilisateur dans le frontend React
-- stockés localement dans le navigateur via IndexedDB
-- jamais envoyés au backend
-- jamais stockés sur le serveur
-- jamais copiés dans `backend/docs_cybersec`
+Quand une réponse est trouvée dans le corpus, elle reste concise et cite ses sources.
 
 ## Stack
 
@@ -60,4 +58,4 @@ npm install
 npm run dev
 ```
 
-Le frontend conserve les documents personnels localement dans IndexedDB.
+Le frontend sert uniquement l'interface de question/réponse sur le corpus officiel.
