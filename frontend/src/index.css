@@ -395,6 +395,12 @@ textarea {
   padding-bottom: 13px;
 }
 
+.info-card-fill {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
 .info-grid-card {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -418,6 +424,10 @@ textarea {
   padding-left: 18px;
   color: rgba(168, 255, 217, 0.62);
   font-size: 12px;
+}
+
+.info-card-fill .info-list {
+  margin-top: 10px;
 }
 
 .info-list li + li {

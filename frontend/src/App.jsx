@@ -272,7 +272,7 @@ export default function App() {
             </ul>
           </section>
 
-          <section className="info-card info-card-compact">
+          <section className="info-card info-card-compact info-card-fill">
             <div className="info-title">CONSEILS</div>
             <ul className="info-list">
               {DEMO_TIPS.map((tip) => (
