@@ -14,10 +14,10 @@ body,
 body {
   overflow: hidden;
   background:
-    radial-gradient(circle at top, rgba(0, 255, 140, 0.14), transparent 28%),
-    radial-gradient(circle at 82% 16%, rgba(55, 255, 194, 0.08), transparent 18%),
-    linear-gradient(180deg, #031711 0%, #02100c 100%);
-  color: #a8ffd9;
+    radial-gradient(circle at top, rgba(0, 255, 65, 0.16), transparent 28%),
+    radial-gradient(circle at 82% 16%, rgba(0, 255, 65, 0.08), transparent 18%),
+    linear-gradient(180deg, #020b08 0%, #04130e 100%);
+  color: rgba(0, 255, 65, 0.9);
 }
 
 body,
@@ -52,13 +52,13 @@ button:disabled {
 
 textarea {
   scrollbar-width: thin;
-  scrollbar-color: rgba(0, 255, 140, 0.24) transparent;
+  scrollbar-color: rgba(0, 255, 65, 0.24) transparent;
 }
 
 .app-shell {
   height: 100%;
   overflow: hidden;
-  padding: 18px;
+  padding: 16px;
 }
 
 .app-grid {
@@ -66,7 +66,7 @@ textarea {
   grid-template-columns: minmax(0, 2.8fr) minmax(290px, 0.95fr);
   gap: 18px;
   align-items: stretch;
-  max-width: 1620px;
+  max-width: 1860px;
   height: 100%;
   margin: 0 auto;
 }
@@ -87,12 +87,12 @@ textarea {
 .conversation-card,
 .composer-card,
 .info-card {
-  background: linear-gradient(180deg, rgba(6, 36, 26, 0.98), rgba(3, 23, 17, 0.98));
-  border: 1px solid rgba(0, 255, 140, 0.18);
+  background: linear-gradient(180deg, rgba(4, 19, 14, 0.98), rgba(2, 11, 8, 0.98));
+  border: 1px solid rgba(0, 255, 65, 0.14);
   border-radius: 18px;
   box-shadow:
-    inset 0 1px 0 rgba(181, 255, 219, 0.04),
-    0 20px 44px rgba(0, 0, 0, 0.32);
+    inset 0 1px 0 rgba(0, 255, 65, 0.035),
+    0 18px 38px rgba(0, 0, 0, 0.38);
 }
 
 .topbar-card {
@@ -113,7 +113,7 @@ textarea {
 .info-metric-label {
   font-size: 10px;
   letter-spacing: 0.18em;
-  color: rgba(168, 255, 217, 0.45);
+  color: rgba(0, 255, 65, 0.35);
 }
 
 .hero-title {
@@ -121,13 +121,14 @@ textarea {
   font-size: clamp(1.6rem, 2vw, 2.2rem);
   line-height: 1.05;
   letter-spacing: 0.18em;
-  color: #a8ffd9;
+  color: rgba(0, 255, 65, 0.9);
+  text-shadow: 0 0 14px rgba(0, 255, 65, 0.2);
 }
 
 .hero-subtitle {
   margin: 0;
   max-width: 760px;
-  color: rgba(168, 255, 217, 0.72);
+  color: rgba(0, 255, 65, 0.55);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -138,10 +139,10 @@ textarea {
   gap: 8px;
   flex-wrap: wrap;
   padding: 8px 11px;
-  border: 1px solid rgba(0, 255, 140, 0.26);
+  border: 1px solid rgba(0, 255, 65, 0.22);
   border-radius: 999px;
-  background: rgba(0, 255, 140, 0.08);
-  box-shadow: inset 0 0 0 1px rgba(55, 255, 194, 0.04);
+  background: rgba(0, 255, 65, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(0, 255, 65, 0.03);
 }
 
 .status-dot {
@@ -156,7 +157,7 @@ textarea {
 }
 
 .status-meta {
-  color: rgba(168, 255, 217, 0.62);
+  color: rgba(0, 255, 65, 0.55);
   font-size: 10px;
 }
 
@@ -176,7 +177,7 @@ textarea {
   flex-direction: column;
   padding: 28px 30px 22px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(0, 255, 140, 0.26) transparent;
+  scrollbar-color: rgba(0, 255, 65, 0.26) transparent;
 }
 
 .conversation-scroll::-webkit-scrollbar,
@@ -186,7 +187,7 @@ textarea {
 
 .conversation-scroll::-webkit-scrollbar-thumb,
 .info-panel::-webkit-scrollbar-thumb {
-  background: rgba(0, 255, 140, 0.22);
+  background: rgba(0, 255, 65, 0.22);
   border-radius: 999px;
 }
 
@@ -211,15 +212,15 @@ textarea {
 }
 
 .message-assistant .message-bubble {
-  background: rgba(0, 255, 140, 0.08);
-  border: 1px solid rgba(0, 255, 140, 0.18);
-  color: #a8ffd9;
+  background: rgba(0, 255, 65, 0.06);
+  border: 1px solid rgba(0, 255, 65, 0.14);
+  color: rgba(0, 255, 65, 0.9);
 }
 
 .message-user .message-bubble {
-  background: linear-gradient(180deg, rgba(11, 48, 45, 0.96), rgba(7, 32, 32, 0.96));
-  border: 1px solid rgba(55, 255, 194, 0.18);
-  color: rgba(214, 255, 238, 0.92);
+  background: linear-gradient(180deg, rgba(4, 28, 25, 0.96), rgba(3, 18, 16, 0.96));
+  border: 1px solid rgba(0, 181, 255, 0.18);
+  color: rgba(183, 247, 255, 0.92);
 }
 
 .source-list {
@@ -229,21 +230,21 @@ textarea {
 }
 
 .source-card {
-  border: 1px solid rgba(0, 255, 140, 0.16);
+  border: 1px solid rgba(0, 255, 65, 0.14);
   border-radius: 12px;
   padding: 10px 12px;
-  background: rgba(0, 255, 140, 0.055);
+  background: rgba(0, 255, 65, 0.04);
 }
 
 .source-title {
   font-size: 10px;
-  color: rgba(168, 255, 217, 0.72);
+  color: rgba(0, 255, 65, 0.55);
   margin-bottom: 5px;
 }
 
 .source-content {
   font-size: 11px;
-  color: rgba(168, 255, 217, 0.62);
+  color: rgba(0, 255, 65, 0.55);
   line-height: 1.6;
 }
 
@@ -259,11 +260,11 @@ textarea {
   align-self: flex-start;
   padding: 6px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(0, 255, 140, 0.26);
-  background: rgba(0, 255, 140, 0.08);
+  border: 1px solid rgba(0, 255, 65, 0.22);
+  background: rgba(0, 255, 65, 0.06);
   font-size: 10px;
   letter-spacing: 0.16em;
-  color: rgba(168, 255, 217, 0.72);
+  color: rgba(0, 255, 65, 0.55);
 }
 
 .empty-title {
@@ -271,13 +272,13 @@ textarea {
   max-width: 900px;
   font-size: clamp(1.8rem, 2.2vw, 2.65rem);
   line-height: 1.2;
-  color: #a8ffd9;
+  color: rgba(0, 255, 65, 0.9);
 }
 
 .empty-copy {
   margin: 0;
   max-width: 900px;
-  color: rgba(168, 255, 217, 0.72);
+  color: rgba(0, 255, 65, 0.55);
   line-height: 1.8;
 }
 
@@ -290,9 +291,9 @@ textarea {
 .empty-card {
   padding: 16px;
   border-radius: 15px;
-  border: 1px solid rgba(0, 255, 140, 0.14);
-  background: rgba(0, 255, 140, 0.055);
-  color: rgba(168, 255, 217, 0.62);
+  border: 1px solid rgba(0, 255, 65, 0.14);
+  background: rgba(0, 255, 65, 0.04);
+  color: rgba(0, 255, 65, 0.55);
   line-height: 1.7;
 }
 
@@ -300,11 +301,11 @@ textarea {
   margin-bottom: 8px;
   font-size: 10px;
   letter-spacing: 0.16em;
-  color: rgba(168, 255, 217, 0.72);
+  color: rgba(0, 255, 65, 0.55);
 }
 
 .loading-line {
-  color: rgba(168, 255, 217, 0.62);
+  color: rgba(0, 255, 65, 0.55);
 }
 
 .suggestions-row {
@@ -316,19 +317,19 @@ textarea {
 .suggestion-pill {
   padding: 6px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(0, 255, 140, 0.18);
-  background: rgba(0, 255, 140, 0.055);
-  color: rgba(168, 255, 217, 0.68);
+  border: 1px solid rgba(0, 255, 65, 0.14);
+  background: rgba(0, 255, 65, 0.04);
+  color: rgba(0, 255, 65, 0.55);
   font-size: 10px;
   line-height: 1.2;
   cursor: pointer;
 }
 
 .suggestion-pill:hover:not(:disabled) {
-  border-color: rgba(0, 255, 140, 0.3);
-  background: rgba(0, 255, 140, 0.08);
-  color: #a8ffd9;
-  box-shadow: 0 0 0 1px rgba(0, 255, 140, 0.04);
+  border-color: rgba(0, 255, 65, 0.22);
+  background: rgba(0, 255, 65, 0.06);
+  color: rgba(0, 255, 65, 0.9);
+  box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.03);
 }
 
 .composer-card {
@@ -337,7 +338,7 @@ textarea {
 
 .composer-label {
   margin-bottom: 8px;
-  color: rgba(168, 255, 217, 0.62);
+  color: rgba(0, 255, 65, 0.55);
   font-size: 11px;
 }
 
@@ -351,26 +352,27 @@ textarea {
   flex: 1;
   min-height: 72px;
   resize: none;
-  border: 1px solid rgba(0, 255, 140, 0.18);
+  border: 1px solid rgba(0, 255, 65, 0.14);
   border-radius: 14px;
-  background: rgba(0, 255, 140, 0.055);
-  color: #a8ffd9;
+  background: rgba(0, 255, 65, 0.04);
+  color: rgba(0, 255, 65, 0.9);
   padding: 12px 14px;
   outline: none;
 }
 
 .composer-input:focus {
-  border-color: rgba(0, 255, 140, 0.3);
-  box-shadow: 0 0 0 1px rgba(0, 255, 140, 0.08);
+  border-color: rgba(0, 255, 65, 0.22);
+  box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.05);
 }
 
 .composer-button {
   min-width: 122px;
   border-radius: 14px;
-  border: 1px solid rgba(0, 255, 140, 0.26);
-  background: linear-gradient(180deg, rgba(0, 255, 140, 0.14), rgba(0, 255, 140, 0.08));
-  color: #a8ffd9;
+  border: 1px solid rgba(0, 255, 65, 0.22);
+  background: linear-gradient(180deg, rgba(0, 255, 65, 0.08), rgba(0, 255, 65, 0.04));
+  color: rgba(0, 255, 65, 0.9);
   cursor: pointer;
+  box-shadow: inset 0 0 18px rgba(0, 255, 65, 0.03);
 }
 
 .info-panel {
@@ -381,12 +383,12 @@ textarea {
   overflow-y: auto;
   padding-right: 4px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(0, 255, 140, 0.24) transparent;
+  scrollbar-color: rgba(0, 255, 65, 0.24) transparent;
 }
 
 .info-card {
   padding: 14px 15px;
-  color: rgba(168, 255, 217, 0.72);
+  color: rgba(0, 255, 65, 0.55);
   line-height: 1.55;
 }
 
@@ -410,19 +412,19 @@ textarea {
 .info-metric-value {
   margin-top: 3px;
   font-size: 26px;
-  color: #a8ffd9;
+  color: rgba(0, 255, 65, 0.9);
 }
 
 .info-metric-text {
   margin-top: 4px;
-  color: rgba(168, 255, 217, 0.72);
+  color: rgba(0, 255, 65, 0.55);
   font-size: 12px;
 }
 
 .info-list {
   margin: 8px 0 0;
   padding-left: 18px;
-  color: rgba(168, 255, 217, 0.62);
+  color: rgba(0, 255, 65, 0.55);
   font-size: 12px;
 }
 

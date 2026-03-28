@@ -25,7 +25,7 @@ const apiFetch = (url, options = {}) =>
   });
 
 function StatusBadge({ status }) {
-  const color = status.indexing ? "#f59e0b" : status.ready ? "#00ff8c" : "#ef4444";
+  const color = status.indexing ? "#f59e0b" : status.ready ? "#00ff41" : "#ef4444";
   const label = status.indexing ? "INDEXING" : status.ready ? "ONLINE" : "OFFLINE";
 
   return (
