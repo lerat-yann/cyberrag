@@ -26,25 +26,27 @@ const apiFetch = (url, options = {}) =>
 
 const getErrorMessage = async (response) => {
   try {
-    const data = await response.json();
-    if (typeof data?.detail === "string" && data.detail.trim()) {
-      return data.detail;
-    }
-    if (typeof data?.message === "string" && data.message.trim()) {
-      return data.message;
-    }
-  } catch {
-    try {
-      const text = await response.text();
-      if (text.trim()) {
-        return text;
-      }
-    } catch {
+    const rawText = await response.text();
+    if (!rawText?.trim()) {
       return null;
     }
-  }
 
-  return null;
+    try {
+      const data = JSON.parse(rawText);
+      if (typeof data?.detail === "string" && data.detail.trim()) {
+        return data.detail;
+      }
+      if (typeof data?.message === "string" && data.message.trim()) {
+        return data.message;
+      }
+    } catch {
+      return rawText.trim();
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
 };
 
 function StatusBadge({ status }) {

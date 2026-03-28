@@ -110,7 +110,7 @@ def classify_llm_error(exc: Exception) -> tuple[int, str]:
         or "rate limit" in message_lower
         or "rate_limit" in message_lower
     ):
-        return 429, "Quota Gemini atteinte pour le moment. Réessaie plus tard."
+        return 429, "Quota Gemini atteint pour le moment. Réessaie plus tard."
 
     return 502, "Erreur temporaire côté modèle. Réessaie plus tard."
 
