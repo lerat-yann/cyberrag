@@ -51,6 +51,15 @@ RÈGLES STRICTES :
 6. Quand une réponse est effectivement trouvée dans le corpus, sois concis, précis et cite la source de chaque information entre crochets [1], [2], etc.
 7. Si tu refuses ou si l'information n'est pas trouvée, n'invente rien et ne cites aucune source inexistante."""
 
+STANDALONE_QUESTION_PROMPT = """Tu reformules une question utilisateur en question autonome.
+
+RÈGLES :
+1. Utilise uniquement l'historique récent pour lever les ambiguïtés de la question actuelle.
+2. Si la question actuelle est déjà autonome, retourne-la quasiment inchangée.
+3. N'ajoute aucune information qui n'apparaît pas dans l'historique.
+4. Réponds uniquement par la question reformulée, sans commentaire.
+"""
+
 
 class PipelineState:
     def __init__(self):
@@ -198,9 +207,15 @@ app = FastAPI(title="RAG Cybersécurité API", version="1.0.0", lifespan=lifespa
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
+class HistoryMessage(BaseModel):
+    role: str
+    content: str
+
+
 class QueryRequest(BaseModel):
     question: str
     top_k: int = TOP_K
+    history: Optional[List[HistoryMessage]] = None
 
 
 class SourceChunk(BaseModel):
@@ -225,6 +240,45 @@ class StatusResponse(BaseModel):
     chunk_count: int
     model: str
     corpus_scope: str
+
+
+def format_history(history: Optional[List[HistoryMessage]]) -> str:
+    if not history:
+        return ""
+
+    lines = []
+    for item in history:
+        role = "Utilisateur" if item.role == "user" else "Assistant"
+        content = item.content.strip()
+        if content:
+            lines.append(f"{role}: {content}")
+    return "\n".join(lines)
+
+
+def build_standalone_question(question: str, history: Optional[List[HistoryMessage]]) -> str:
+    if not history:
+        return question
+
+    formatted_history = format_history(history)
+    if not formatted_history:
+        return question
+
+    prompt = (
+        f"{STANDALONE_QUESTION_PROMPT}\n"
+        f"Historique récent :\n{formatted_history}\n\n"
+        f"Question actuelle : {question}\n\n"
+        "Question autonome :"
+    )
+
+    try:
+        response = get_llm().invoke(prompt)
+        reformulated = getattr(response, "content", "")
+        if isinstance(reformulated, str) and reformulated.strip():
+            return reformulated.strip()
+    except Exception:
+        logger.warning("Reformulation conversationnelle impossible, fallback sur la question originale.", exc_info=True)
+
+    return question
 
 
 @app.get("/health")
@@ -253,12 +307,13 @@ def query(req: QueryRequest):
         )
 
     start = time.time()
-    retrieved_docs = state.hybrid_retriever.invoke(req.question)[: req.top_k]
+    standalone_question = build_standalone_question(req.question, req.history)
+    retrieved_docs = state.hybrid_retriever.invoke(standalone_question)[: req.top_k]
     if not retrieved_docs:
         raise HTTPException(status_code=404, detail="Aucun document exploitable dans le corpus officiel.")
 
     context = "\n\n".join(f"[{i+1}] {doc.page_content}" for i, doc in enumerate(retrieved_docs))
-    prompt_value = get_rag_prompt().invoke({"context": context, "question": req.question})
+    prompt_value = get_rag_prompt().invoke({"context": context, "question": standalone_question})
     try:
         response_text = get_llm().invoke(prompt_value).content
     except Exception as exc:
