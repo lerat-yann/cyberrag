@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -73,7 +74,8 @@ class PipelineState:
 
 state = PipelineState()
 embedding_model = None
-llm = None
+rewriter_llm = None
+answer_llm = None
 rag_prompt = None
 
 
@@ -84,16 +86,31 @@ def get_embedding_model():
     return embedding_model
 
 
-def get_llm():
-    global llm
-    if llm is None:
-        llm = ChatGoogleGenerativeAI(
+def get_rewriter_llm():
+    global rewriter_llm
+    if rewriter_llm is None:
+        rewriter_llm = ChatGoogleGenerativeAI(
+            model=MODEL_NAME,
+            temperature=0,
+            max_tokens=96,
+            retries=0,
+            request_timeout=5,
+        )
+    return rewriter_llm
+
+
+def get_answer_llm():
+    global answer_llm
+    if answer_llm is None:
+        answer_llm = ChatGoogleGenerativeAI(
             model=MODEL_NAME,
             temperature=0.2,
             top_p=0.9,
-            max_output_tokens=600,
+            max_tokens=600,
+            retries=0,
+            request_timeout=12,
         )
-    return llm
+    return answer_llm
 
 
 def get_rag_prompt():
@@ -255,8 +272,35 @@ def format_history(history: Optional[List[HistoryMessage]]) -> str:
     return "\n".join(lines)
 
 
-def build_standalone_question(question: str, history: Optional[List[HistoryMessage]]) -> str:
+def should_rewrite_question(question: str, history: Optional[List[HistoryMessage]]) -> bool:
     if not history:
+        return False
+
+    normalized = " ".join(question.lower().strip().split())
+    if not normalized:
+        return False
+
+    ambiguous_patterns = [
+        r"^(et|mais|alors|donc)\b",
+        r"^(et|qu'en est-il)\s+(pour|côté)\b",
+        r"^(peux-tu|peut-tu|tu peux)\s+(préciser|développer)\b",
+        r"^précise\b",
+        r"^et\s+que\b",
+        r"^et\s+quoi\b",
+        r"^et\s+à\s+quelle\b",
+        r"^(pour|côté)\s+(eux|elles|les visiteurs|les admins|les administrateurs)\b",
+        r"\bfaut-il\s+les\s+(revoir|éviter)\b",
+    ]
+
+    if any(re.search(pattern, normalized) for pattern in ambiguous_patterns):
+        return True
+
+    short_pronoun_follow_up = (" eux", " elles", " ils", " cela", " ça", " ce point", " ce sujet")
+    return len(normalized) <= 40 and any(term in f" {normalized}" for term in short_pronoun_follow_up)
+
+
+def build_standalone_question(question: str, history: Optional[List[HistoryMessage]]) -> str:
+    if not should_rewrite_question(question, history):
         return question
 
     formatted_history = format_history(history)
@@ -271,12 +315,12 @@ def build_standalone_question(question: str, history: Optional[List[HistoryMessa
     )
 
     try:
-        response = get_llm().invoke(prompt)
+        response = get_rewriter_llm().invoke(prompt)
         reformulated = getattr(response, "content", "")
         if isinstance(reformulated, str) and reformulated.strip():
             return reformulated.strip()
     except Exception:
-        logger.warning("Reformulation conversationnelle impossible, fallback sur la question originale.", exc_info=True)
+        logger.warning("Reformulation conversationnelle impossible, fallback immédiat sur la question originale.", exc_info=True)
 
     return question
 
@@ -315,7 +359,7 @@ def query(req: QueryRequest):
     context = "\n\n".join(f"[{i+1}] {doc.page_content}" for i, doc in enumerate(retrieved_docs))
     prompt_value = get_rag_prompt().invoke({"context": context, "question": standalone_question})
     try:
-        response_text = get_llm().invoke(prompt_value).content
+        response_text = get_answer_llm().invoke(prompt_value).content
     except Exception as exc:
         status_code, detail = classify_llm_error(exc)
         logger.exception("Erreur lors de l'appel Gemini.")
