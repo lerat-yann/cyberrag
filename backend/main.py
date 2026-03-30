@@ -94,7 +94,7 @@ def get_rewriter_llm():
             temperature=0,
             max_tokens=96,
             retries=0,
-            request_timeout=5,
+            request_timeout=10,
         )
     return rewriter_llm
 
