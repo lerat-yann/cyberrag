@@ -276,27 +276,118 @@ def should_rewrite_question(question: str, history: Optional[List[HistoryMessage
     if not history:
         return False
 
-    normalized = " ".join(question.lower().strip().split())
+    normalized = " ".join(question.lower().replace("’", "'").strip().split())
     if not normalized:
         return False
 
+    autonomous_starts = (
+        "que dit le corpus sur",
+        "que dit la documentation sur",
+        "quels sont",
+        "quelles sont",
+        "comment ",
+        "pourquoi ",
+        "qui ",
+        "où ",
+        "quand ",
+    )
+    if any(normalized.startswith(prefix) for prefix in autonomous_starts):
+        return False
+
+    explicit_subject_markers = (
+        " sur ",
+        " les ",
+        " des ",
+        " du ",
+        " de la ",
+        " de l'",
+        " d'",
+        " pour les ",
+        " pour des ",
+        " pour le ",
+        " pour la ",
+        " l'",
+    )
+    action_verb_starts = (
+        "résume ",
+        "resumes ",
+        "explique ",
+        "précise ",
+        "precise ",
+        "développe ",
+        "developpe ",
+        "reformule ",
+        "clarifie ",
+        "simplifie ",
+    )
+    if normalized.startswith(action_verb_starts) and any(marker in f" {normalized} " for marker in explicit_subject_markers):
+        return False
+
+    guided_action_patterns = [
+        r"^(peux-tu|peut-tu|tu peux)\s+(résumer|expliquer|préciser|développer|reformuler|clarifier|simplifier)\b",
+    ]
+    if any(re.search(pattern, normalized) for pattern in guided_action_patterns) and any(
+        marker in f" {normalized} " for marker in explicit_subject_markers
+    ):
+        return False
+
+    follow_up_starts = (
+        "et ",
+        "et pour",
+        "et à quelle",
+        "et que",
+        "qu'en est-il",
+        "dans ce cas",
+        "à ce sujet",
+    )
+    if any(normalized.startswith(prefix) for prefix in follow_up_starts):
+        return True
+
+    follow_up_verbs = (
+        "résume",
+        "résumer",
+        "précise",
+        "préciser",
+        "explique",
+        "expliquer",
+        "développe",
+        "développer",
+        "reformule",
+        "clarifie",
+        "simplifie",
+    )
+    vague_references = (
+        "ça",
+        "cela",
+        "ce point",
+        "ce sujet",
+        "eux",
+        "elles",
+        "leur",
+        "leurs",
+        "ce cas",
+    )
+
     ambiguous_patterns = [
-        r"^(et|mais|alors|donc)\b",
-        r"^(et|qu'en est-il)\s+(pour|côté)\b",
-        r"^(peux-tu|peut-tu|tu peux)\s+(préciser|développer)\b",
+        r"^(peux-tu|peut-tu|tu peux)\s+(résumer|préciser|expliquer|développer|reformuler|clarifier|simplifier)\b",
+        r"^explique-moi\b",
+        r"^résume\b",
         r"^précise\b",
-        r"^et\s+que\b",
-        r"^et\s+quoi\b",
-        r"^et\s+à\s+quelle\b",
-        r"^(pour|côté)\s+(eux|elles|les visiteurs|les admins|les administrateurs)\b",
+        r"^qu'en est-il\s+pour\b",
         r"\bfaut-il\s+les\s+(revoir|éviter)\b",
     ]
 
     if any(re.search(pattern, normalized) for pattern in ambiguous_patterns):
         return True
 
-    short_pronoun_follow_up = (" eux", " elles", " ils", " cela", " ça", " ce point", " ce sujet")
-    return len(normalized) <= 40 and any(term in f" {normalized}" for term in short_pronoun_follow_up)
+    word_count = len(normalized.split())
+    if word_count <= 8 and any(verb in normalized for verb in follow_up_verbs):
+        return True
+
+    if word_count <= 10 and any(reference in f" {normalized}" for reference in vague_references):
+        return True
+
+    return False
 
 
 def build_standalone_question(question: str, history: Optional[List[HistoryMessage]]) -> str:
