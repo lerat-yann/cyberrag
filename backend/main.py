@@ -12,6 +12,8 @@ from typing import List, Optional
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from google import genai
+from google.genai.types import GenerateContentConfig, HttpOptions, HttpRetryOptions
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader
 from langchain_community.retrievers import BM25Retriever
@@ -75,7 +77,7 @@ class PipelineState:
 state = PipelineState()
 embedding_model = None
 rewriter_llm = None
-answer_llm = None
+answer_client = None
 rag_prompt = None
 
 
@@ -99,18 +101,26 @@ def get_rewriter_llm():
     return rewriter_llm
 
 
-def get_answer_llm():
-    global answer_llm
-    if answer_llm is None:
-        answer_llm = ChatGoogleGenerativeAI(
-            model=MODEL_NAME,
-            temperature=0.2,
-            top_p=0.9,
-            max_tokens=600,
-            retries=0,
-            request_timeout=12,
-        )
-    return answer_llm
+def get_answer_client():
+    global answer_client
+    if answer_client is None:
+        answer_client = genai.Client(api_key=GOOGLE_API_KEY)
+    return answer_client
+
+
+def get_answer_generation_config():
+    return GenerateContentConfig(
+        temperature=0.2,
+        top_p=0.9,
+        max_output_tokens=600,
+        http_options=HttpOptions(
+            timeout=12000,
+            retry_options=HttpRetryOptions(
+                attempts=1,
+                http_status_codes=[],
+            ),
+        ),
+    )
 
 
 def get_rag_prompt():
@@ -450,7 +460,14 @@ def query(req: QueryRequest):
     context = "\n\n".join(f"[{i+1}] {doc.page_content}" for i, doc in enumerate(retrieved_docs))
     prompt_value = get_rag_prompt().invoke({"context": context, "question": standalone_question})
     try:
-        response_text = get_answer_llm().invoke(prompt_value).content
+        response = get_answer_client().models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt_value.to_string(),
+            config=get_answer_generation_config(),
+        )
+        response_text = response.text or ""
+        if not response_text.strip():
+            raise RuntimeError("Réponse vide du modèle.")
     except Exception as exc:
         status_code, detail = classify_llm_error(exc)
         logger.exception("Erreur lors de l'appel Gemini.")
