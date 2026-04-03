@@ -369,11 +369,16 @@ def _extract_topic_from_history(history: List[HistoryMessage]) -> str:
     """Extrait le sujet du dernier échange utilisateur dans l'historique.
 
     Stratégie simple : la dernière question utilisateur contient le sujet.
-    On la retourne telle quelle pour l'injecter dans la reformulation.
+    On nettoie les préfixes conversationnels (et, et pour...) pour
+    obtenir un sujet plus exploitable dans la reformulation.
     """
     for item in reversed(history):
         if item.role == "user" and item.content.strip():
-            return item.content.strip()
+            topic = item.content.strip()
+            # Nettoyer les préfixes conversationnels
+            cleaned = re.sub(r"^(?:et\s+(?:pour\s+)?)", "", topic, flags=re.IGNORECASE).strip()
+            cleaned = cleaned.rstrip("?!.").strip()
+            return cleaned if cleaned else topic
     return ""
 
 
@@ -412,12 +417,16 @@ def build_standalone_question(question: str, history: Optional[List[HistoryMessa
         logger.info("[REWRITE] deterministic reformulated='%s'", reformulated)
         return reformulated
 
-    # Cas "et pour X ?" / "et X ?" → "Question précédente + complément"
+    # Cas "et pour X ?" / "et X ?" → question naturelle avec le complément
     et_match = re.match(r"^et\s+(pour\s+)?(.*)", normalized, re.IGNORECASE)
     if et_match:
         complement = et_match.group(2).rstrip("?").strip()
         if complement:
-            reformulated = f"{topic.rstrip('?').strip()} : {complement} ?"
+            # Produire une question naturelle
+            # "Et pour les comptes partagés ?" → "...pour les comptes partagés ?"
+            # "Et les visiteurs ?" → "...pour les visiteurs ?"
+            pour_prefix = "pour " if et_match.group(1) else "pour "
+            reformulated = f"{topic.rstrip('?').strip()} {pour_prefix}{complement} ?"
             logger.info("[REWRITE] deterministic reformulated='%s'", reformulated)
             return reformulated
 
