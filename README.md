@@ -1,250 +1,81 @@
 # CyberRAG
 
-> Démo RAG cybersécurité simple, centrée sur un corpus officiel versionné côté backend.
+**Les équipes cybersécurité perdent un temps considérable à chercher la bonne procédure dans des documents PDF éparpillés.** Quelle est la politique de contrôle d'accès ? Comment réagir à une fuite de données ? L'information existe, mais elle est enfouie dans des dizaines de pages.
 
-## Le problème
+**CyberRAG est un assistant documentaire qui répond instantanément à partir du corpus officiel.** Il indexe les PDF cybersécurité côté serveur, retrouve les passages pertinents via une recherche hybride (sémantique + BM25), et génère une réponse sourcée avec citations. Aucune hallucination : si l'information n'est pas dans le corpus, il le dit.
 
-Dans beaucoup de projets RAG, la démonstration devient vite confuse :
-- mélange entre documents système et documents utilisateur,
-- logique d’upload qui alourdit l’application,
-- réponses difficiles à cadrer,
-- comportements d’erreur peu lisibles quand le modèle ou le quota échoue.
-
-## La solution
-
-**CyberRAG** est une démo volontairement resserrée :
-
-- **corpus officiel uniquement** côté backend ;
-- **aucun upload utilisateur** ;
-- **aucune persistance locale de documents** dans le frontend ;
-- réponses ancrées dans les documents disponibles ;
-- gestion explicite des cas :
-  - information absente du corpus,
-  - question hors sujet,
-  - demande offensive ou dangereuse ;
-- **contexte conversationnel court** pour mieux gérer certaines relances ;
-- **gestion plus propre des erreurs Gemini**, notamment quand le quota est atteint.
-
-## Ce que fait le projet
-
-- interroger un corpus PDF cybersécurité stocké dans `backend/docs_cybersec`
-- retrouver les passages les plus pertinents
-- générer une réponse concise avec sources
-- conserver un **court contexte conversationnel** pour certaines questions de suivi
-- renvoyer un message clair si Gemini est temporairement indisponible ou en quota dépassé
-
-## Ce que le projet ne fait pas
-
-- pas d’upload utilisateur
-- pas de base documentaire personnelle
-- pas d’IndexedDB ou de stockage local de fichiers
-- pas de mémoire persistante
-- pas d’assistant généraliste hors périmètre du corpus cybersécurité
-
----
-
-## Points forts du projet
-
-- **Démo claire** : périmètre réduit, comportement lisible
-- **Architecture simple** : frontend React/Vite + backend FastAPI
-- **RAG cadré** : réponses basées sur le corpus officiel backend
-- **Contexte court contrôlé** : meilleure gestion de certaines relances sans mémoire longue
-- **Fail-fast plus propre sur Gemini** : message utilisateur explicite si le quota est atteint
-
----
+> **[Tester la démo live](https://cyberrag.vercel.app/)**
 
 ## Stack technique
 
-### Frontend
-- React
-- Vite
+| Composant | Technologies |
+|:---|:---|
+| **Backend** | FastAPI, LangChain, ChromaDB, HuggingFace Embeddings (`all-MiniLM-L6-v2`), Gemini 2.5 Flash |
+| **Frontend** | React 18, Vite, Tailwind CSS |
+| **Retrieval** | Recherche hybride : sémantique (cosine) + BM25 via EnsembleRetriever |
+| **Déploiement** | Backend sur VPS OVH (Debian, Nginx, systemd) · Frontend sur Vercel |
 
-### Backend
-- FastAPI
-- LangChain
-- ChromaDB
-- Sentence Transformers
-- Gemini
+## Fonctionnalités
 
----
+- **Réponses sourcées** : chaque affirmation cite sa source entre crochets ([1], [2]...) avec le PDF et la page d'origine.
+- **Contexte conversationnel court** : gère les relances comme "Et pour les visiteurs ?" ou "Peux-tu résumer en 3 points ?" en les reformulant automatiquement.
+- **Tri des questions** : distingue les informations absentes du corpus, les questions hors sujet et les demandes offensives.
+- **Gestion des erreurs Gemini** : quota dépassé, timeout, erreurs transitoires — le frontend affiche un message clair, jamais une stack trace.
 
 ## Architecture
 
-```text
-frontend (React + Vite)
-        ↓
-backend FastAPI
-        ↓
-retrieval sur le corpus officiel
-        ↓
-génération de réponse avec Gemini
 ```
+backend/
+├── main.py              # API FastAPI (endpoints /health, /status, /query)
+├── docs_cybersec/       # Corpus PDF officiel (guides CNIL, ANSSI, CERT-FR)
+├── requirements.txt
+└── .env                 # GOOGLE_API_KEY (non versionné)
 
-Le backend lit exclusivement les PDF situés dans :
-
-```text
-backend/docs_cybersec
+frontend/src/
+├── App.jsx              # Interface React (chat, historique, sources)
+├── main.jsx
+└── index.css
 ```
-
----
-
-## API backend
-
-| Méthode | Route | Description |
-|--------|-------|-------------|
-| GET | `/health` | Vérifie que l’API répond |
-| GET | `/status` | Retourne l’état du corpus officiel serveur |
-| POST | `/query` | Interroge le corpus officiel |
-| GET | `/docs` | Swagger / documentation interactive |
-
-Le backend **n’expose aucun endpoint d’upload utilisateur**.
-
----
-
-## Comportement du modèle
-
-Le système distingue explicitement ces cas :
-
-- **Réponse trouvée dans le corpus**  
-  L’assistant répond de manière concise et cite ses sources.
-
-- **Information absente du corpus**  
-  L’assistant indique qu’elle n’est pas trouvée dans la documentation disponible.
-
-- **Question hors sujet**  
-  L’assistant indique qu’il est limité au périmètre cybersécurité et au corpus officiel.
-
-- **Demande offensive ou dangereuse**  
-  L’assistant refuse l’aide offensive opérationnelle et se limite à une aide défensive, de prévention, de détection ou de protection.
-
-- **Quota Gemini atteint**  
-  L’application renvoie un message clair du type :  
-  `Quota Gemini atteint pour le moment. Réessaie plus tard.`
-
----
-
-## Contexte conversationnel court
-
-Le projet gère désormais un **contexte conversationnel court** pour mieux comprendre certaines relances du type :
-
-- `Et pour les visiteurs ?`
-- `Et à quelle fréquence faut-il les revoir ?`
-- `Peux-tu résumer en 3 points ?`
-
-Le but n’est **pas** d’ajouter une mémoire persistante, mais simplement d’améliorer la compréhension des suivis immédiats tout en gardant la réponse finale ancrée dans le corpus.
-
----
-
-## Démo en ligne
-
-Ajoute ici ton lien frontend Vercel réel :
-
-```md
-[Tester la démo](URL_FRONTEND_VERCEL)
-```
-
-> Ne pas réutiliser automatiquement un ancien domaine backend si celui-ci a changé.
-
----
 
 ## Installation rapide
 
-### 1) Cloner le projet
-
-```bash
-git clone <URL_DU_REPO>
-cd cyberrag
-```
-
-### 2) Lancer le backend
+### Backend
 
 ```bash
 cd backend
-python -m venv .venv
-source .venv/bin/activate
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+cp .env.example .env     # Ajouter GOOGLE_API_KEY
+# Placer les PDF dans docs_cybersec/
+uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
-### 3) Lancer le frontend
+### Frontend
 
 ```bash
-cd ../frontend
+cd frontend
 npm install
+echo "VITE_API_URL=http://127.0.0.1:8000" > .env.local
 npm run dev
 ```
 
----
+## Endpoints
 
-## Variables d’environnement
+| Route | Méthode | Description |
+|:------|:--------|:------------|
+| `/health` | GET | Healthcheck |
+| `/status` | GET | État du pipeline (prêt, indexation, docs, chunks) |
+| `/query` | POST | Question + historique → réponse sourcée |
 
-Exemple minimal côté backend :
+## Checklist qualité
 
-```env
-GOOGLE_API_KEY=your_api_key_here
-```
+- [x] **Zéro bug au démarrage** : le backend indexe et démarre proprement, le frontend se connecte automatiquement.
+- [x] **Gestion des erreurs** : quota Gemini, timeout, corpus absent — messages explicites côté utilisateur.
+- [x] **Secret management** : clé API via `os.getenv()` et `.env`, jamais versionnée.
+- [x] **UI/UX** : interface terminal/SOC, suggestions cliquables, sources dépliables, indicateur de statut en temps réel.
+- [ ] **Assets** : captures d'écran et GIF de démo (à venir).
 
-Créer un fichier `.env` côté backend à partir d’un futur `.env.example`.
+## Limites connues
 
----
-
-## Structure du dépôt
-
-```text
-cyberrag/
-├── backend/
-│   ├── docs_cybersec/
-│   ├── main.py
-│   └── requirements.txt
-├── frontend/
-│   └── src/
-├── assets/
-│   └── (captures ou GIF de démonstration à ajouter)
-└── README.md
-```
-
----
-
-## Pourquoi ce projet est utile dans un portfolio
-
-CyberRAG montre plusieurs compétences utiles en contexte réel :
-
-- cadrer un projet RAG pour éviter la complexité inutile ;
-- construire une API FastAPI simple et exploitable ;
-- relier frontend et backend proprement ;
-- gérer les erreurs utilisateur et les erreurs modèle de façon explicite ;
-- faire évoluer le comportement conversationnel sans basculer dans une “fausse mémoire” complexe.
-
----
-
-## Limites actuelles
-
-- dépendance au quota Gemini
-- contexte conversationnel court uniquement
-- corpus statique géré par le développeur
-- pas encore de démonstration exhaustive de tous les cas conversationnels
-
----
-
-## Améliorations possibles
-
-- ajouter un vrai `.env.example`
-- ajouter un dossier `assets/` avec capture ou GIF
-- ajouter une section “déploiement” plus détaillée
-- ajouter des tests automatisés backend
-- améliorer encore la synthèse des relances conversationnelles les plus ambiguës
-
----
-
-## Lancement en production
-
-Le projet est pensé pour une architecture simple :
-
-- **frontend** : Vercel
-- **backend** : VPS Debian + Nginx + FastAPI
-
----
-
-## Auteur
-
-Projet réalisé par Yann dans une logique de démonstration portfolio autour du RAG cybersécurité.
+- Gemini 2.5 Flash en free tier : 20 requêtes/jour. En cas de dépassement, message explicite côté frontend.
+- Le contexte conversationnel est volontairement géré par reformulation déterministe (regex) plutôt que par un second appel LLM. Raison : Gemini Flash en free tier produisait des reformulations tronquées et inutilisables (ex : "Quels sont les" au lieu d'une question complète). L'approche déterministe est instantanée, gratuite en quota, et couvre les cas de relance courants.
