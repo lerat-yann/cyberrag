@@ -57,10 +57,12 @@ RÈGLES STRICTES :
 STANDALONE_QUESTION_PROMPT = """Tu reformules une question utilisateur en question autonome.
 
 RÈGLES :
-1. Utilise uniquement l'historique récent pour lever les ambiguïtés de la question actuelle.
-2. Si la question actuelle est déjà autonome, retourne-la quasiment inchangée.
-3. N'ajoute aucune information qui n'apparaît pas dans l'historique.
-4. Réponds uniquement par la question reformulée, sans commentaire.
+1. Concentre-toi sur le DERNIER échange (dernière question utilisateur + dernière réponse assistant) pour déterminer le sujet courant.
+2. L'historique plus ancien ne sert que si le dernier échange ne suffit pas à lever l'ambiguïté.
+3. Si la question actuelle demande de résumer, préciser ou développer SANS sujet explicite, le sujet est celui du dernier échange assistant.
+4. Si la question actuelle est déjà autonome, retourne-la quasiment inchangée.
+5. N'ajoute aucune information qui n'apparaît pas dans l'historique.
+6. Réponds uniquement par la question reformulée, sans commentaire.
 """
 
 
@@ -279,7 +281,17 @@ def format_history(history: Optional[List[HistoryMessage]]) -> str:
         content = item.content.strip()
         if content:
             lines.append(f"{role}: {content}")
-    return "\n".join(lines)
+
+    if len(lines) <= 2:
+        return "\n".join(lines)
+
+    older = lines[:-2]
+    recent = lines[-2:]
+    parts = []
+    if older:
+        parts.append("[Historique ancien]\n" + "\n".join(older))
+    parts.append("[Dernier échange]\n" + "\n".join(recent))
+    return "\n\n".join(parts)
 
 
 def should_rewrite_question(question: str, history: Optional[List[HistoryMessage]]) -> bool:
@@ -401,7 +413,10 @@ def should_rewrite_question(question: str, history: Optional[List[HistoryMessage
 
 
 def build_standalone_question(question: str, history: Optional[List[HistoryMessage]]) -> str:
-    if not should_rewrite_question(question, history):
+    needs_rewrite = should_rewrite_question(question, history)
+    logger.info("[REWRITE] question='%s' | should_rewrite=%s", question, needs_rewrite)
+
+    if not needs_rewrite:
         return question
 
     formatted_history = format_history(history)
@@ -419,6 +434,7 @@ def build_standalone_question(question: str, history: Optional[List[HistoryMessa
         response = get_rewriter_llm().invoke(prompt)
         reformulated = getattr(response, "content", "")
         if isinstance(reformulated, str) and reformulated.strip():
+            logger.info("[REWRITE] reformulated='%s'", reformulated.strip())
             return reformulated.strip()
     except Exception:
         logger.warning("Reformulation conversationnelle impossible, fallback immédiat sur la question originale.", exc_info=True)
@@ -453,9 +469,14 @@ def query(req: QueryRequest):
 
     start = time.time()
     standalone_question = build_standalone_question(req.question, req.history)
+    logger.info("[QUERY] original='%s' | standalone='%s'", req.question, standalone_question)
+
     retrieved_docs = state.hybrid_retriever.invoke(standalone_question)[: req.top_k]
     if not retrieved_docs:
         raise HTTPException(status_code=404, detail="Aucun document exploitable dans le corpus officiel.")
+
+    for i, doc in enumerate(retrieved_docs):
+        logger.info("[RETRIEVAL] chunk %d (id=%s): %.120s...", i, doc.metadata.get("chunk_id"), doc.page_content.replace("\n", " "))
 
     context = "\n\n".join(f"[{i+1}] {doc.page_content}" for i, doc in enumerate(retrieved_docs))
     prompt_value = get_rag_prompt().invoke({"context": context, "question": standalone_question})
