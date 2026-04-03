@@ -19,7 +19,6 @@ from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader
 from langchain_community.retrievers import BM25Retriever
 from langchain_classic.retrievers import EnsembleRetriever
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pydantic import BaseModel
@@ -54,16 +53,6 @@ RÈGLES STRICTES :
 6. Quand une réponse est effectivement trouvée dans le corpus, sois concis, précis et cite la source de chaque information entre crochets [1], [2], etc.
 7. Si tu refuses ou si l'information n'est pas trouvée, n'invente rien et ne cites aucune source inexistante."""
 
-STANDALONE_QUESTION_PROMPT = """Tu reformules une question utilisateur en question autonome.
-
-RÈGLES :
-1. Concentre-toi sur le DERNIER échange (dernière question utilisateur + dernière réponse assistant) pour déterminer le sujet courant.
-2. L'historique plus ancien ne sert que si le dernier échange ne suffit pas à lever l'ambiguïté.
-3. Si la question actuelle demande de résumer, préciser ou développer SANS sujet explicite, le sujet est celui du dernier échange assistant.
-4. Si la question actuelle est déjà autonome, retourne-la quasiment inchangée.
-5. N'ajoute aucune information qui n'apparaît pas dans l'historique.
-6. Réponds uniquement par la question reformulée, sans commentaire.
-"""
 
 
 class PipelineState:
@@ -78,7 +67,6 @@ class PipelineState:
 
 state = PipelineState()
 embedding_model = None
-rewriter_llm = None
 answer_client = None
 rag_prompt = None
 
@@ -88,19 +76,6 @@ def get_embedding_model():
     if embedding_model is None:
         embedding_model = HuggingFaceEmbeddings(model_name=EMBED_MODEL)
     return embedding_model
-
-
-def get_rewriter_llm():
-    global rewriter_llm
-    if rewriter_llm is None:
-        rewriter_llm = ChatGoogleGenerativeAI(
-            model=MODEL_NAME,
-            temperature=0,
-            max_tokens=96,
-            retries=0,
-            request_timeout=10,
-        )
-    return rewriter_llm
 
 
 def get_answer_client():
@@ -271,46 +246,6 @@ class StatusResponse(BaseModel):
     corpus_scope: str
 
 
-def _truncate_assistant_content(content: str, max_chars: int = 200) -> str:
-    """Tronque les réponses assistant pour le rewriter.
-
-    Le rewriter a besoin du sujet, pas de la réponse complète.
-    Garder trop de contenu noie le signal et dégrade la reformulation.
-    """
-    content = content.strip()
-    if len(content) <= max_chars:
-        return content
-    return content[:max_chars].rsplit(" ", 1)[0] + "…"
-
-
-def format_history(history: Optional[List[HistoryMessage]]) -> str:
-    if not history:
-        return ""
-
-    lines = []
-    for item in history:
-        role = "Utilisateur" if item.role == "user" else "Assistant"
-        content = item.content.strip()
-        if not content:
-            continue
-        if item.role == "assistant":
-            content = _truncate_assistant_content(content)
-        lines.append(f"{role}: {content}")
-
-    if not lines:
-        return ""
-
-    if len(lines) <= 2:
-        return "\n".join(lines)
-
-    older = lines[:-2]
-    recent = lines[-2:]
-    parts = []
-    if older:
-        parts.append("[Historique ancien]\n" + "\n".join(older))
-    parts.append("[Dernier échange]\n" + "\n".join(recent))
-    return "\n\n".join(parts)
-
 
 def should_rewrite_question(question: str, history: Optional[List[HistoryMessage]]) -> bool:
     if not history:
@@ -430,6 +365,18 @@ def should_rewrite_question(question: str, history: Optional[List[HistoryMessage
     return False
 
 
+def _extract_topic_from_history(history: List[HistoryMessage]) -> str:
+    """Extrait le sujet du dernier échange utilisateur dans l'historique.
+
+    Stratégie simple : la dernière question utilisateur contient le sujet.
+    On la retourne telle quelle pour l'injecter dans la reformulation.
+    """
+    for item in reversed(history):
+        if item.role == "user" and item.content.strip():
+            return item.content.strip()
+    return ""
+
+
 def build_standalone_question(question: str, history: Optional[List[HistoryMessage]]) -> str:
     needs_rewrite = should_rewrite_question(question, history)
     logger.info("[REWRITE] question='%s' | should_rewrite=%s", question, needs_rewrite)
@@ -437,34 +384,47 @@ def build_standalone_question(question: str, history: Optional[List[HistoryMessa
     if not needs_rewrite:
         return question
 
-    formatted_history = format_history(history)
-    if not formatted_history:
+    topic = _extract_topic_from_history(history)
+    if not topic:
         return question
 
-    prompt = (
-        f"{STANDALONE_QUESTION_PROMPT}\n"
-        f"Historique récent :\n{formatted_history}\n\n"
-        f"Question actuelle : {question}\n\n"
-        "Question autonome :"
+    # Reformulation déterministe basée sur des patterns connus
+    normalized = " ".join(question.lower().replace("'", "'").strip().split())
+
+    # Cas "résume / résumer en N points" → "Résume [sujet] en N points"
+    summary_match = re.search(r"(résume|résumer)\s+(en\s+\d+\s+points?)", normalized)
+    if summary_match:
+        reformulated = f"Peux-tu résumer {topic} {summary_match.group(2)} ?"
+        logger.info("[REWRITE] deterministic reformulated='%s'", reformulated)
+        return reformulated
+
+    # Cas "peux-tu résumer/expliquer/préciser..." sans sujet
+    action_match = re.search(
+        r"^(?:peux-tu|peut-tu|tu peux)\s+(résumer|expliquer|préciser|développer|reformuler|clarifier|simplifier)",
+        normalized,
     )
+    if action_match:
+        verb = action_match.group(1)
+        # Récupérer ce qui suit le verbe (ex: "en 3 points", "plus simplement")
+        rest = normalized[action_match.end():].strip().rstrip("?").strip()
+        suffix = f" {rest}" if rest else ""
+        reformulated = f"Peux-tu {verb} {topic}{suffix} ?"
+        logger.info("[REWRITE] deterministic reformulated='%s'", reformulated)
+        return reformulated
 
-    try:
-        response = get_rewriter_llm().invoke(prompt)
-        reformulated = getattr(response, "content", "")
-        if isinstance(reformulated, str) and reformulated.strip():
-            reformulated = reformulated.strip()
-            # Garde-fou : si la reformulation est plus courte que l'original
-            # ou fait moins de 5 mots, c'est probablement une troncature ratée
-            word_count = len(reformulated.split())
-            if word_count < 4 or len(reformulated) < len(question) * 0.5:
-                logger.warning("[REWRITE] reformulation trop courte, fallback: '%s'", reformulated)
-                return question
-            logger.info("[REWRITE] reformulated='%s'", reformulated)
+    # Cas "et pour X ?" / "et X ?" → "Question précédente + complément"
+    et_match = re.match(r"^et\s+(pour\s+)?(.*)", normalized, re.IGNORECASE)
+    if et_match:
+        complement = et_match.group(2).rstrip("?").strip()
+        if complement:
+            reformulated = f"{topic.rstrip('?').strip()} : {complement} ?"
+            logger.info("[REWRITE] deterministic reformulated='%s'", reformulated)
             return reformulated
-    except Exception:
-        logger.warning("Reformulation conversationnelle impossible, fallback immédiat sur la question originale.", exc_info=True)
 
-    return question
+    # Cas génériques avec références vagues → on injecte le sujet
+    reformulated = f"{question.rstrip('?').strip()} (concernant : {topic}) ?"
+    logger.info("[REWRITE] deterministic reformulated='%s'", reformulated)
+    return reformulated
 
 
 @app.get("/health")
