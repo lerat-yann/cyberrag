@@ -271,6 +271,18 @@ class StatusResponse(BaseModel):
     corpus_scope: str
 
 
+def _truncate_assistant_content(content: str, max_chars: int = 200) -> str:
+    """Tronque les réponses assistant pour le rewriter.
+
+    Le rewriter a besoin du sujet, pas de la réponse complète.
+    Garder trop de contenu noie le signal et dégrade la reformulation.
+    """
+    content = content.strip()
+    if len(content) <= max_chars:
+        return content
+    return content[:max_chars].rsplit(" ", 1)[0] + "…"
+
+
 def format_history(history: Optional[List[HistoryMessage]]) -> str:
     if not history:
         return ""
@@ -279,8 +291,14 @@ def format_history(history: Optional[List[HistoryMessage]]) -> str:
     for item in history:
         role = "Utilisateur" if item.role == "user" else "Assistant"
         content = item.content.strip()
-        if content:
-            lines.append(f"{role}: {content}")
+        if not content:
+            continue
+        if item.role == "assistant":
+            content = _truncate_assistant_content(content)
+        lines.append(f"{role}: {content}")
+
+    if not lines:
+        return ""
 
     if len(lines) <= 2:
         return "\n".join(lines)
@@ -434,8 +452,15 @@ def build_standalone_question(question: str, history: Optional[List[HistoryMessa
         response = get_rewriter_llm().invoke(prompt)
         reformulated = getattr(response, "content", "")
         if isinstance(reformulated, str) and reformulated.strip():
-            logger.info("[REWRITE] reformulated='%s'", reformulated.strip())
-            return reformulated.strip()
+            reformulated = reformulated.strip()
+            # Garde-fou : si la reformulation est plus courte que l'original
+            # ou fait moins de 5 mots, c'est probablement une troncature ratée
+            word_count = len(reformulated.split())
+            if word_count < 4 or len(reformulated) < len(question) * 0.5:
+                logger.warning("[REWRITE] reformulation trop courte, fallback: '%s'", reformulated)
+                return question
+            logger.info("[REWRITE] reformulated='%s'", reformulated)
+            return reformulated
     except Exception:
         logger.warning("Reformulation conversationnelle impossible, fallback immédiat sur la question originale.", exc_info=True)
 
