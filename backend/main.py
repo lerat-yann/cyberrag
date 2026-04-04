@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -11,12 +12,13 @@ from typing import List, Optional
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from google import genai
+from google.genai.types import GenerateContentConfig, HttpOptions, HttpRetryOptions
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader
 from langchain_community.retrievers import BM25Retriever
 from langchain_classic.retrievers import EnsembleRetriever
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pydantic import BaseModel
@@ -52,6 +54,7 @@ RÈGLES STRICTES :
 7. Si tu refuses ou si l'information n'est pas trouvée, n'invente rien et ne cites aucune source inexistante."""
 
 
+
 class PipelineState:
     def __init__(self):
         self.vectorstore = None
@@ -64,7 +67,7 @@ class PipelineState:
 
 state = PipelineState()
 embedding_model = None
-llm = None
+answer_client = None
 rag_prompt = None
 
 
@@ -75,16 +78,26 @@ def get_embedding_model():
     return embedding_model
 
 
-def get_llm():
-    global llm
-    if llm is None:
-        llm = ChatGoogleGenerativeAI(
-            model=MODEL_NAME,
-            temperature=0.2,
-            top_p=0.9,
-            max_output_tokens=600,
-        )
-    return llm
+def get_answer_client():
+    global answer_client
+    if answer_client is None:
+        answer_client = genai.Client(api_key=GOOGLE_API_KEY)
+    return answer_client
+
+
+def get_answer_generation_config():
+    return GenerateContentConfig(
+        temperature=0.2,
+        top_p=0.9,
+        max_output_tokens=600,
+        http_options=HttpOptions(
+            timeout=12000,
+            retry_options=HttpRetryOptions(
+                attempts=1,
+                http_status_codes=[],
+            ),
+        ),
+    )
 
 
 def get_rag_prompt():
@@ -198,9 +211,15 @@ app = FastAPI(title="RAG Cybersécurité API", version="1.0.0", lifespan=lifespa
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 
+class HistoryMessage(BaseModel):
+    role: str
+    content: str
+
+
 class QueryRequest(BaseModel):
     question: str
     top_k: int = TOP_K
+    history: Optional[List[HistoryMessage]] = None
 
 
 class SourceChunk(BaseModel):
@@ -225,6 +244,196 @@ class StatusResponse(BaseModel):
     chunk_count: int
     model: str
     corpus_scope: str
+
+
+
+def should_rewrite_question(question: str, history: Optional[List[HistoryMessage]]) -> bool:
+    if not history:
+        return False
+
+    normalized = " ".join(question.lower().replace("’", "'").strip().split())
+    if not normalized:
+        return False
+
+    autonomous_starts = (
+        "que dit le corpus sur",
+        "que dit la documentation sur",
+        "quels sont",
+        "quelles sont",
+        "comment ",
+        "pourquoi ",
+        "qui ",
+        "où ",
+        "quand ",
+    )
+    if any(normalized.startswith(prefix) for prefix in autonomous_starts):
+        return False
+
+    explicit_subject_markers = (
+        " sur ",
+        " les ",
+        " des ",
+        " du ",
+        " de la ",
+        " de l'",
+        " d'",
+        " pour les ",
+        " pour des ",
+        " pour le ",
+        " pour la ",
+        " l'",
+    )
+    action_verb_starts = (
+        "résume ",
+        "resumes ",
+        "explique ",
+        "précise ",
+        "precise ",
+        "développe ",
+        "developpe ",
+        "reformule ",
+        "clarifie ",
+        "simplifie ",
+    )
+    if normalized.startswith(action_verb_starts) and any(marker in f" {normalized} " for marker in explicit_subject_markers):
+        return False
+
+    guided_action_patterns = [
+        r"^(peux-tu|peut-tu|tu peux)\s+(résumer|expliquer|préciser|développer|reformuler|clarifier|simplifier)\b",
+    ]
+    if any(re.search(pattern, normalized) for pattern in guided_action_patterns) and any(
+        marker in f" {normalized} " for marker in explicit_subject_markers
+    ):
+        return False
+
+    follow_up_starts = (
+        "et ",
+        "et pour",
+        "et à quelle",
+        "et que",
+        "qu'en est-il",
+        "dans ce cas",
+        "à ce sujet",
+    )
+    if any(normalized.startswith(prefix) for prefix in follow_up_starts):
+        return True
+
+    follow_up_verbs = (
+        "résume",
+        "résumer",
+        "précise",
+        "préciser",
+        "explique",
+        "expliquer",
+        "développe",
+        "développer",
+        "reformule",
+        "clarifie",
+        "simplifie",
+    )
+    vague_references = (
+        "ça",
+        "cela",
+        "ce point",
+        "ce sujet",
+        "eux",
+        "elles",
+        "leur",
+        "leurs",
+        "ce cas",
+    )
+
+    ambiguous_patterns = [
+        r"^(peux-tu|peut-tu|tu peux)\s+(résumer|préciser|expliquer|développer|reformuler|clarifier|simplifier)\b",
+        r"^explique-moi\b",
+        r"^résume\b",
+        r"^précise\b",
+        r"^qu'en est-il\s+pour\b",
+        r"\bfaut-il\s+les\s+(revoir|éviter)\b",
+    ]
+
+    if any(re.search(pattern, normalized) for pattern in ambiguous_patterns):
+        return True
+
+    word_count = len(normalized.split())
+    if word_count <= 8 and any(verb in normalized for verb in follow_up_verbs):
+        return True
+
+    if word_count <= 10 and any(reference in f" {normalized}" for reference in vague_references):
+        return True
+
+    return False
+
+
+def _extract_topic_from_history(history: List[HistoryMessage]) -> str:
+    """Extrait le sujet du dernier échange utilisateur dans l'historique.
+
+    Stratégie simple : la dernière question utilisateur contient le sujet.
+    On nettoie les préfixes conversationnels (et, et pour...) pour
+    obtenir un sujet plus exploitable dans la reformulation.
+    """
+    for item in reversed(history):
+        if item.role == "user" and item.content.strip():
+            topic = item.content.strip()
+            # Nettoyer les préfixes conversationnels
+            cleaned = re.sub(r"^(?:et\s+(?:pour\s+)?)", "", topic, flags=re.IGNORECASE).strip()
+            cleaned = cleaned.rstrip("?!.").strip()
+            return cleaned if cleaned else topic
+    return ""
+
+
+def build_standalone_question(question: str, history: Optional[List[HistoryMessage]]) -> str:
+    needs_rewrite = should_rewrite_question(question, history)
+    logger.info("[REWRITE] question='%s' | should_rewrite=%s", question, needs_rewrite)
+
+    if not needs_rewrite:
+        return question
+
+    topic = _extract_topic_from_history(history)
+    if not topic:
+        return question
+
+    # Reformulation déterministe basée sur des patterns connus
+    normalized = " ".join(question.lower().replace("'", "'").strip().split())
+
+    # Cas "résume / résumer en N points" → "Résume [sujet] en N points"
+    summary_match = re.search(r"(résume|résumer)\s+(en\s+\d+\s+points?)", normalized)
+    if summary_match:
+        reformulated = f"Peux-tu résumer {topic} {summary_match.group(2)} ?"
+        logger.info("[REWRITE] deterministic reformulated='%s'", reformulated)
+        return reformulated
+
+    # Cas "peux-tu résumer/expliquer/préciser..." sans sujet
+    action_match = re.search(
+        r"^(?:peux-tu|peut-tu|tu peux)\s+(résumer|expliquer|préciser|développer|reformuler|clarifier|simplifier)",
+        normalized,
+    )
+    if action_match:
+        verb = action_match.group(1)
+        # Récupérer ce qui suit le verbe (ex: "en 3 points", "plus simplement")
+        rest = normalized[action_match.end():].strip().rstrip("?").strip()
+        suffix = f" {rest}" if rest else ""
+        reformulated = f"Peux-tu {verb} {topic}{suffix} ?"
+        logger.info("[REWRITE] deterministic reformulated='%s'", reformulated)
+        return reformulated
+
+    # Cas "et pour X ?" / "et X ?" → question naturelle avec le complément
+    et_match = re.match(r"^et\s+(pour\s+)?(.*)", normalized, re.IGNORECASE)
+    if et_match:
+        complement = et_match.group(2).rstrip("?").strip()
+        if complement:
+            # Produire une question naturelle
+            # "Et pour les comptes partagés ?" → "...pour les comptes partagés ?"
+            # "Et les visiteurs ?" → "...pour les visiteurs ?"
+            pour_prefix = "pour " if et_match.group(1) else "pour "
+            reformulated = f"{topic.rstrip('?').strip()} {pour_prefix}{complement} ?"
+            logger.info("[REWRITE] deterministic reformulated='%s'", reformulated)
+            return reformulated
+
+    # Cas génériques avec références vagues → on injecte le sujet
+    reformulated = f"{question.rstrip('?').strip()} (concernant : {topic}) ?"
+    logger.info("[REWRITE] deterministic reformulated='%s'", reformulated)
+    return reformulated
 
 
 @app.get("/health")
@@ -253,14 +462,27 @@ def query(req: QueryRequest):
         )
 
     start = time.time()
-    retrieved_docs = state.hybrid_retriever.invoke(req.question)[: req.top_k]
+    standalone_question = build_standalone_question(req.question, req.history)
+    logger.info("[QUERY] original='%s' | standalone='%s'", req.question, standalone_question)
+
+    retrieved_docs = state.hybrid_retriever.invoke(standalone_question)[: req.top_k]
     if not retrieved_docs:
         raise HTTPException(status_code=404, detail="Aucun document exploitable dans le corpus officiel.")
 
+    for i, doc in enumerate(retrieved_docs):
+        logger.info("[RETRIEVAL] chunk %d (id=%s): %.120s...", i, doc.metadata.get("chunk_id"), doc.page_content.replace("\n", " "))
+
     context = "\n\n".join(f"[{i+1}] {doc.page_content}" for i, doc in enumerate(retrieved_docs))
-    prompt_value = get_rag_prompt().invoke({"context": context, "question": req.question})
+    prompt_value = get_rag_prompt().invoke({"context": context, "question": standalone_question})
     try:
-        response_text = get_llm().invoke(prompt_value).content
+        response = get_answer_client().models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt_value.to_string(),
+            config=get_answer_generation_config(),
+        )
+        response_text = response.text or ""
+        if not response_text.strip():
+            raise RuntimeError("Réponse vide du modèle.")
     except Exception as exc:
         status_code, detail = classify_llm_error(exc)
         logger.exception("Erreur lors de l'appel Gemini.")

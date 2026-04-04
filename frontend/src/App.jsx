@@ -9,6 +9,8 @@ const SUGGESTIONS = [
   "Quelles sont les exigences de chiffrement ?",
 ];
 
+const HISTORY_LIMIT = 6;
+
 const DEMO_TIPS = [
   "Pose des questions précises sur les procédures, contrôles ou politiques décrits dans le corpus.",
   "Le modèle répond uniquement depuis les documents officiels indexés côté backend.",
@@ -48,6 +50,17 @@ const getErrorMessage = async (response) => {
     return null;
   }
 };
+
+const buildHistory = (messages) =>
+  messages
+    .filter(
+      (message) =>
+        (message.role === "user" || message.role === "assistant") &&
+        typeof message.content === "string" &&
+        message.content.trim(),
+    )
+    .slice(-HISTORY_LIMIT)
+    .map(({ role, content }) => ({ role, content }));
 
 function StatusBadge({ status }) {
   const color = status.indexing ? "#f59e0b" : status.ready ? "#00ff41" : "#ef4444";
@@ -151,6 +164,7 @@ export default function App() {
     const value = question.trim();
     if (!value || loading || !status.ready) return;
 
+    const history = buildHistory(messages);
     setInput("");
     setMessages((current) => [...current, { role: "user", content: value }]);
     setLoading(true);
@@ -158,7 +172,7 @@ export default function App() {
     try {
       const response = await apiFetch(`${API_URL}/query`, {
         method: "POST",
-        body: JSON.stringify({ question: value, top_k: 3 }),
+        body: JSON.stringify({ question: value, top_k: 3, history }),
       });
 
       if (!response.ok) {
