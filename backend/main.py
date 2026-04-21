@@ -89,7 +89,7 @@ def get_answer_generation_config():
     return GenerateContentConfig(
         temperature=0.2,
         top_p=0.9,
-        max_output_tokens=600,
+        max_output_tokens=800,
         http_options=HttpOptions(
             timeout=12000,
             retry_options=HttpRetryOptions(
