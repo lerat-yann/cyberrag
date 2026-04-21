@@ -204,6 +204,10 @@ textarea {
   align-self: stretch;
 }
 
+.message-assistant .message-role {
+  color: rgba(0, 229, 255, 0.50);
+}
+
 .message-bubble {
   border-radius: 16px;
   padding: 16px 18px;
@@ -212,15 +216,15 @@ textarea {
 }
 
 .message-assistant .message-bubble {
-  background: rgba(0, 255, 65, 0.06);
-  border: 1px solid rgba(0, 255, 65, 0.14);
-  color: rgba(0, 255, 65, 0.95);
+  background: rgba(0, 229, 255, 0.05);
+  border: 1px solid rgba(0, 229, 255, 0.14);
+  color: rgba(0, 229, 255, 0.95);
 }
 
 .message-user .message-bubble {
-  background: linear-gradient(180deg, rgba(4, 28, 25, 0.96), rgba(3, 18, 16, 0.96));
-  border: 1px solid rgba(0, 181, 255, 0.18);
-  color: rgba(183, 247, 255, 0.92);
+  background: rgba(0, 255, 65, 0.06);
+  border: 1px solid rgba(0, 255, 65, 0.22);
+  color: rgba(0, 255, 65, 0.95);
 }
 
 .source-list {
@@ -230,21 +234,21 @@ textarea {
 }
 
 .source-card {
-  border: 1px solid rgba(0, 255, 65, 0.14);
+  border: 1px solid rgba(0, 229, 255, 0.14);
   border-radius: 12px;
   padding: 10px 12px;
-  background: rgba(0, 255, 65, 0.04);
+  background: rgba(0, 229, 255, 0.04);
 }
 
 .source-title {
   font-size: 10px;
-  color: rgba(0, 255, 65, 0.70);
+  color: rgba(0, 229, 255, 0.70);
   margin-bottom: 5px;
 }
 
 .source-content {
   font-size: 11px;
-  color: rgba(0, 255, 65, 0.70);
+  color: rgba(0, 229, 255, 0.70);
   line-height: 1.6;
 }
 
@@ -305,7 +309,7 @@ textarea {
 }
 
 .loading-line {
-  color: rgba(0, 255, 65, 0.70);
+  color: rgba(0, 229, 255, 0.70);
 }
 
 .suggestions-row {
